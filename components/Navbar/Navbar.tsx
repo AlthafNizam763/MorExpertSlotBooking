@@ -12,11 +12,11 @@ export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { name: 'Home', href: '/' },
+    // { name: 'Home', href: '/' },
     { name: 'Book Slot', href: '/book' },
-    { name: 'Track Booking', href: '/track' },
-    { name: 'How It Works', href: '/#how-it-works' },
-    { name: 'Pricing', href: '/#pricing' },
+    // { name: 'Track Booking', href: '/track' },
+    // { name: 'How It Works', href: '/#how-it-works' },
+    // { name: 'Pricing', href: '/#pricing' },
   ];
 
   return (
@@ -66,14 +66,14 @@ export const Navbar: React.FC = () => {
               <span>Login</span>
             </Link>
 
-            <Link
+            {/* <Link
               href="/book"
               className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-blue-600 hover:from-blue-600 hover:to-primary rounded-xl shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 transition-all transform hover:-translate-y-0.5"
             >
               <Calendar className="w-4 h-4" />
               <span>Book Your Slot</span>
               <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+            </Link> */}
           </div>
 
           {/* Mobile Hamburger Menu */}

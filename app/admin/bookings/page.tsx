@@ -267,7 +267,6 @@ export default function AdminBookingsPage() {
                     <th className="py-4 px-4">Candidate Details</th>
                     <th className="py-4 px-4">Selected Package</th>
                     <th className="py-4 px-4">Date & Slot</th>
-                    <th className="py-4 px-4">PDF Resume</th>
                     <th className="py-4 px-4">Price</th>
                     <th className="py-4 px-4">Status</th>
                     <th className="py-4 px-4 text-right">Approval & Actions</th>
@@ -276,7 +275,7 @@ export default function AdminBookingsPage() {
                 <tbody className="divide-y divide-slate-800/80">
                   {bookings.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-500">
+                      <td colSpan={7} className="py-12 text-center text-slate-500">
                         No bookings match your current search/filter criteria.
                       </td>
                     </tr>
@@ -290,8 +289,7 @@ export default function AdminBookingsPage() {
                           </td>
                           <td className="py-4 px-4 space-y-0.5">
                             <div className="font-bold text-white text-sm">{b.name}</div>
-                            <div className="text-[11px] text-slate-400">{b.email}</div>
-                            <div className="text-[11px] text-slate-500 font-mono">{b.phone}</div>
+                            <div className="text-[11px] text-slate-400 font-mono">{b.phone}</div>
                           </td>
                           <td className="py-4 px-4">
                             <span className="font-bold text-sky-400">
@@ -301,19 +299,6 @@ export default function AdminBookingsPage() {
                           <td className="py-4 px-4 text-slate-300 font-medium">
                             <div>{b.date}</div>
                             <div className="text-accent text-[11px] font-bold">{b.slot}</div>
-                          </td>
-                          <td className="py-4 px-4">
-                            {b.resume && b.resume.trim() !== '' ? (
-                              <button
-                                onClick={() => setPreviewPdfUrl(b.resume)}
-                                className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline bg-primary/10 px-2.5 py-1 rounded-lg"
-                              >
-                                <FileText className="w-3.5 h-3.5" />
-                                <span>Preview PDF</span>
-                              </button>
-                            ) : (
-                              <span className="text-slate-500 italic text-[11px]">No Resume Uploaded</span>
-                            )}
                           </td>
                           <td className="py-4 px-4 font-bold text-slate-200 text-sm">
                             {formatPrice(b.price)}

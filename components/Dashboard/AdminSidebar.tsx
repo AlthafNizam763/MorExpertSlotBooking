@@ -24,10 +24,8 @@ export const AdminSidebar: React.FC = () => {
   const menuItems = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Bookings', href: '/admin/bookings', icon: CalendarCheck },
-    { name: 'Packages', href: '/admin/packages', icon: Package },
-    { name: 'Calendar & Slots', href: '/admin/calendar', icon: CalendarDays },
-    { name: 'Pricing', href: '/admin/pricing', icon: DollarSign },
-    { name: 'Settings', href: '/admin/settings', icon: Settings },
+    { name: 'Package Management', href: '/admin/packages', icon: Package },
+    { name: 'Calendar & Drag-and-Drop Slot Management', href: '/admin/calendar', icon: CalendarDays },
   ];
 
   const handleLogout = async () => {

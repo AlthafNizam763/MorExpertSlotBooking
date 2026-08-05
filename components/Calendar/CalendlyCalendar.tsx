@@ -33,6 +33,8 @@ import {
   MessageSquare,
   ExternalLink,
   ShieldCheck,
+  FileText,
+  DollarSign,
 } from 'lucide-react';
 import { ISlot, IBooking, IPackage } from '@/types';
 import { formatPrice } from '@/lib/utils';
@@ -312,28 +314,40 @@ Thank you.`;
               <span>MorExpert Slot Booking</span>
             </div>
 
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Reserve Your Review Slot
+            <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+              ❗ HOW TO PLACE ORDER
             </h2>
 
-            <div className="space-y-3 text-sm text-slate-300 pt-2">
-              <div className="flex items-center gap-3">
-                <PackageIcon className="w-5 h-5 text-accent shrink-0" />
-                <span>
-                  Package: {selectedPackage ? `${selectedPackage.name} (${formatPrice(selectedPackage.price)})` : 'Standard Review'}
+            <div className="space-y-3 text-xs text-slate-200 pt-1">
+              <div className="flex items-start gap-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-sm">
+                <FileText className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                <span className="font-semibold leading-relaxed">
+                  Share the details (Old Resume or fill the shared format)
                 </span>
               </div>
-              <div className="flex items-center gap-3">
-                <CalendarIcon className="w-5 h-5 text-accent shrink-0" />
-                <span>Selected Date: {selectedDate ? format(selectedDate, 'MMMM d, yyyy') : 'None'}</span>
+
+              <div className="flex items-start gap-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-sm">
+                <PackageIcon className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <span className="font-semibold leading-relaxed">Choose a package</span>
               </div>
-              <div className="flex items-center gap-3">
-                <Clock className="w-5 h-5 text-accent shrink-0" />
-                <span>Selected Slot: {availableSlots.find((s) => s.time === selectedSlot)?.displayName || selectedSlot || 'None'}</span>
+
+              <div className="flex items-start gap-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-sm">
+                <DollarSign className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <span className="font-semibold leading-relaxed">
+                  Complete the payment and share the payment screenshot
+                </span>
               </div>
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-                <span>Instant Confirmation via WhatsApp</span>
+
+              <div className="flex items-start gap-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-sm">
+                <CalendarIcon className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                <span className="font-semibold leading-relaxed">Select your preferred date</span>
+              </div>
+
+              <div className="flex items-start gap-3 p-3.5 bg-emerald-500/10 rounded-2xl border border-emerald-500/30 text-emerald-300 shadow-sm font-bold">
+                <Clock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">
+                  Your resume will be delivered before 11:59 PM
+                </span>
               </div>
             </div>
           </div>

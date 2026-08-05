@@ -204,19 +204,6 @@ export default function AdminPackagesPage() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={handleVerifyMongoDb}
-              disabled={dbVerifying}
-              className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold bg-slate-900 border border-slate-700 hover:border-emerald-500/50 text-slate-300 hover:text-white rounded-xl transition-all"
-            >
-              {dbVerifying ? (
-                <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-              ) : (
-                <Database className="w-4 h-4 text-emerald-400" />
-              )}
-              <span>Verify MongoDB CRUD</span>
-            </button>
-
-            <button
               onClick={handleOpenAdd}
               className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-lg shadow-primary/25 transition-all"
             >
@@ -225,35 +212,6 @@ export default function AdminPackagesPage() {
             </button>
           </div>
         </div>
-
-        {/* MongoDB Test Result Banner */}
-        {dbVerifyResult && (
-          <div
-            className={`p-5 rounded-2xl border text-xs space-y-3 ${
-              dbVerifyResult.success
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-sm flex items-center gap-2">
-                <Database className="w-4 h-4" />
-                {dbVerifyResult.message}
-              </span>
-              <button
-                onClick={() => setDbVerifyResult(null)}
-                className="p-1 text-slate-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <ul className="space-y-1 font-mono text-[11px]">
-              {dbVerifyResult.auditLogs?.map((log: string, i: number) => (
-                <li key={i}>{log}</li>
-              ))}
-            </ul>
-          </div>
-        )}
 
         {/* Package Grid */}
         {loading ? (

@@ -1,11 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
-import { CalendarDays, Clock, MoveRight, CheckCircle2, User, RefreshCw } from 'lucide-react';
+import { format, startOfWeek, addDays } from 'date-fns';
+import { CalendarDays, Calendar as CalendarIcon, CheckCircle2, User, RefreshCw } from 'lucide-react';
 import { IBooking } from '@/types';
 import { getStatusBadgeClass } from '@/lib/utils';
 import { useToast, useConfirm } from '@/components/Notification/ToastContext';
+
+const SLOT_NAMES = ['Slot 1', 'Slot 2', 'Slot 3'];
+const TIMINGS_MAPPING: Record<string, string> = {
+  'Slot 1': '09:00 AM',
+  'Slot 2': '11:00 AM',
+  'Slot 3': '03:00 PM',
+};
 
 export const DragDropCalendar: React.FC = () => {
   const toast = useToast();
@@ -35,7 +42,6 @@ export const DragDropCalendar: React.FC = () => {
   }, []);
 
   const weekDays = [0, 1, 2, 3, 4, 5, 6].map((offset) => addDays(currentWeekStart, offset));
-  const timeSlots = ['09:00 AM', '11:00 AM', '03:00 PM'];
 
   const handleDragStart = (e: React.DragEvent, booking: IBooking) => {
     setDraggedBooking(booking);
@@ -54,7 +60,7 @@ export const DragDropCalendar: React.FC = () => {
 
     const isConfirmed = await confirm({
       title: 'Reschedule Booking Slot',
-      message: `Move booking ${draggedBooking.bookingId} (${draggedBooking.name}) to ${targetDate} at ${targetSlot}?`,
+      message: `Move booking ${draggedBooking.bookingId} (${draggedBooking.name}) to ${targetDate} (${targetSlot})?`,
       confirmText: 'Confirm Reschedule',
       cancelText: 'Cancel',
       variant: 'warning',
@@ -93,10 +99,10 @@ export const DragDropCalendar: React.FC = () => {
         <div>
           <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
             <CalendarDays className="w-5 h-5 text-primary" />
-            <span>Interactive Drag & Drop Weekly Agenda</span>
+            <span>Weekly Agenda (Slot 1, Slot 2, Slot 3)</span>
           </h3>
           <p className="text-xs text-slate-400 mt-1">
-            Drag any booking card to a new date/slot cell to instantly reschedule appointments.
+            Drag any booking card to a new date/slot cell to instantly reschedule appointments. Maximum 3 slots per day.
           </p>
         </div>
 
@@ -122,7 +128,7 @@ export const DragDropCalendar: React.FC = () => {
         <div className="min-w-[900px]">
           {/* Header Row */}
           <div className="grid grid-cols-8 gap-2 pb-2 text-center text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
-            <div className="py-2 text-left pl-2">Slot Time</div>
+            <div className="py-2 text-left pl-2">Slot</div>
             {weekDays.map((d, i) => (
               <div key={i} className="py-2 bg-slate-900/60 rounded-xl border border-slate-800/80">
                 <div>{format(d, 'EEE')}</div>
@@ -133,61 +139,71 @@ export const DragDropCalendar: React.FC = () => {
 
           {/* Slot Rows */}
           <div className="space-y-2 pt-2">
-            {timeSlots.map((slotTime) => (
-              <div key={slotTime} className="grid grid-cols-8 gap-2 items-stretch min-h-[90px]">
-                <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 flex items-center font-mono font-bold text-xs text-accent">
-                  <Clock className="w-4 h-4 mr-1.5 shrink-0" />
-                  {slotTime}
-                </div>
+            {SLOT_NAMES.map((slotName) => {
+              const legacyTiming = TIMINGS_MAPPING[slotName];
 
-                {weekDays.map((dayObj, dayIdx) => {
-                  const dateStr = format(dayObj, 'yyyy-MM-dd');
-                  const slotBookings = bookings.filter(
-                    (b) => b.date === dateStr && b.slot === slotTime
-                  );
+              return (
+                <div key={slotName} className="grid grid-cols-8 gap-2 items-stretch min-h-[90px]">
+                  <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 flex items-center font-bold text-sm text-primary">
+                    <CalendarIcon className="w-4 h-4 mr-2 text-accent shrink-0" />
+                    {slotName}
+                  </div>
 
-                  return (
-                    <div
-                      key={dayIdx}
-                      onDragOver={handleDragOver}
-                      onDrop={(e) => handleDrop(e, dateStr, slotTime)}
-                      className="p-2 bg-slate-900/40 rounded-xl border border-slate-800/60 hover:border-primary/50 transition-colors space-y-2 flex flex-col justify-start"
-                    >
-                      {slotBookings.map((b) => {
-                        const badgeStyle = getStatusBadgeClass(b.status);
-                        return (
-                          <div
-                            key={b.bookingId}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, b)}
-                            className="p-2.5 rounded-lg bg-slate-800/90 border border-slate-700 hover:border-primary cursor-grab active:cursor-grabbing shadow-md space-y-1 group transition-all"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono font-bold text-[10px] text-primary">
-                                {b.bookingId}
-                              </span>
-                              <span
-                                className={`w-2 h-2 rounded-full ${
-                                  b.status === 'Approved'
-                                    ? 'bg-emerald-500'
-                                    : b.status === 'Rescheduled'
-                                    ? 'bg-purple-500'
-                                    : b.status === 'Cancelled'
-                                    ? 'bg-rose-500'
-                                    : 'bg-amber-500'
-                                }`}
-                              />
+                  {weekDays.map((dayObj, dayIdx) => {
+                    const dateStr = format(dayObj, 'yyyy-MM-dd');
+                    const slotBookings = bookings.filter(
+                      (b) =>
+                        b.date === dateStr &&
+                        (b.slot === slotName || b.slot === legacyTiming)
+                    );
+
+                    return (
+                      <div
+                        key={dayIdx}
+                        onDragOver={handleDragOver}
+                        onDrop={(e) => handleDrop(e, dateStr, slotName)}
+                        className="p-2 bg-slate-900/40 rounded-xl border border-slate-800/60 hover:border-primary/50 transition-colors space-y-2 flex flex-col justify-start"
+                      >
+                        {slotBookings.map((b) => {
+                          return (
+                            <div
+                              key={b.bookingId}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, b)}
+                              className="p-2.5 rounded-lg bg-slate-800/90 border border-slate-700 hover:border-primary cursor-grab active:cursor-grabbing shadow-md space-y-1 group transition-all"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono font-bold text-[10px] text-primary">
+                                  {b.bookingId}
+                                </span>
+                                <span
+                                  className={`w-2 h-2 rounded-full ${
+                                    b.status === 'Approved'
+                                      ? 'bg-emerald-500'
+                                      : b.status === 'Rescheduled'
+                                      ? 'bg-purple-500'
+                                      : b.status === 'Cancelled'
+                                      ? 'bg-rose-500'
+                                      : 'bg-amber-500'
+                                  }`}
+                                />
+                              </div>
+                              <p className="font-bold text-white text-xs truncate">{b.name}</p>
+                              <p className="text-[10px] text-slate-400 truncate">{b.phone}</p>
+                              {b.packageName && (
+                                <p className="text-[9px] font-semibold text-sky-400 truncate">
+                                  {b.packageName}
+                                </p>
+                              )}
                             </div>
-                            <p className="font-bold text-white text-xs truncate">{b.name}</p>
-                            <p className="text-[10px] text-slate-400 truncate">{b.phone}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
