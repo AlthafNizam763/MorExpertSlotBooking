@@ -11,8 +11,12 @@ import { IBooking } from '@/types';
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-if (!existsSync(uploadsDir)) {
-  mkdirSync(uploadsDir, { recursive: true });
+try {
+  if (!existsSync(uploadsDir)) {
+    mkdirSync(uploadsDir, { recursive: true });
+  }
+} catch (e) {
+  console.warn('Uploads directory creation warning:', e);
 }
 
 export async function GET(req: Request) {
@@ -62,39 +66,47 @@ export async function POST(req: Request) {
     const contentType = req.headers.get('content-type') || '';
 
     if (contentType.includes('application/json')) {
-      const json = await req.json();
-      name = json.name || '';
-      email = json.email || '';
-      phone = json.phone || '';
-      date = json.date || '';
-      slot = json.slot || '';
-      notes = json.notes || '';
-      packageName = json.packageName || 'Standard Package';
-      packagePrice = json.packagePrice !== undefined ? Number(json.packagePrice) : 500;
+      try {
+        const json = await req.json();
+        name = json.name || '';
+        email = json.email || '';
+        phone = json.phone || '';
+        date = json.date || '';
+        slot = json.slot || '';
+        notes = json.notes || '';
+        packageName = json.packageName || 'Standard Package';
+        packagePrice = json.packagePrice !== undefined ? Number(json.packagePrice) : 500;
+      } catch (err) {
+        console.warn('Error parsing JSON payload:', err);
+      }
     } else {
-      const formData = await req.formData();
-      name = (formData.get('name') as string) || '';
-      email = (formData.get('email') as string) || '';
-      phone = (formData.get('phone') as string) || '';
-      date = (formData.get('date') as string) || '';
-      slot = (formData.get('slot') as string) || '';
-      notes = (formData.get('notes') as string) || '';
-      packageName = (formData.get('packageName') as string) || 'Standard Package';
-      const pStr = formData.get('packagePrice') as string;
-      packagePrice = pStr ? Number(pStr) : 500;
+      try {
+        const formData = await req.formData();
+        name = (formData.get('name') as string) || '';
+        email = (formData.get('email') as string) || '';
+        phone = (formData.get('phone') as string) || '';
+        date = (formData.get('date') as string) || '';
+        slot = (formData.get('slot') as string) || '';
+        notes = (formData.get('notes') as string) || '';
+        packageName = (formData.get('packageName') as string) || 'Standard Package';
+        const pStr = formData.get('packagePrice') as string;
+        packagePrice = pStr ? Number(pStr) : 500;
 
-      const resumeFile = formData.get('resume') as File | null;
-      if (resumeFile && typeof resumeFile === 'object' && resumeFile.name) {
-        if (resumeFile.type === 'application/pdf' || resumeFile.name.endsWith('.pdf')) {
-          if (resumeFile.size <= 10 * 1024 * 1024) {
-            const bytes = await resumeFile.arrayBuffer();
-            const buffer = Buffer.from(bytes);
-            const sanitizedFileName = `${Date.now()}_${resumeFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-            const filePath = path.join(uploadsDir, sanitizedFileName);
-            await fs.writeFile(filePath, buffer);
-            resumeUrl = `/uploads/${sanitizedFileName}`;
+        const resumeFile = formData.get('resume') as File | null;
+        if (resumeFile && typeof resumeFile === 'object' && resumeFile.name) {
+          if (resumeFile.type === 'application/pdf' || resumeFile.name.endsWith('.pdf')) {
+            if (resumeFile.size <= 10 * 1024 * 1024) {
+              const bytes = await resumeFile.arrayBuffer();
+              const buffer = Buffer.from(bytes);
+              const sanitizedFileName = `${Date.now()}_${resumeFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+              const filePath = path.join(uploadsDir, sanitizedFileName);
+              await fs.writeFile(filePath, buffer);
+              resumeUrl = `/uploads/${sanitizedFileName}`;
+            }
           }
         }
+      } catch (err) {
+        console.warn('Error parsing FormData payload:', err);
       }
     }
 
@@ -109,20 +121,24 @@ export async function POST(req: Request) {
 
     // Prevent Duplicate Bookings for the same slot on the same date
     if (conn) {
-      const existingBooking = await Booking.findOne({
-        date,
-        slot,
-        status: { $ne: 'Cancelled' },
-      });
+      try {
+        const existingBooking = await Booking.findOne({
+          date,
+          slot,
+          status: { $ne: 'Cancelled' },
+        });
 
-      if (existingBooking) {
-        return NextResponse.json(
-          {
-            error: `Slot "${slot}" on ${date} is already booked by ${existingBooking.name}. Please select an available slot.`,
-            bookedBy: existingBooking.name,
-          },
-          { status: 400 }
-        );
+        if (existingBooking) {
+          return NextResponse.json(
+            {
+              error: `Slot "${slot}" on ${date} is already booked by ${existingBooking.name}. Please select an available slot.`,
+              bookedBy: existingBooking.name,
+            },
+            { status: 400 }
+          );
+        }
+      } catch (e) {
+        console.warn('DB findOne failed during duplicate check:', e);
       }
     } else {
       const existingFallback = fallbackStore.bookings.find(
@@ -192,6 +208,9 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error('Booking Creation Error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to process booking' }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || 'Failed to process booking' },
+      { status: 500 }
+    );
   }
 }

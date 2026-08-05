@@ -181,7 +181,17 @@ Thank you.`;
         body: JSON.stringify(payload),
       });
 
-      const json = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let json: any = {};
+
+      if (contentType.includes('application/json')) {
+        json = await res.json();
+      } else {
+        const errText = await res.text();
+        console.error('Non-JSON response received from /api/bookings:', errText);
+        throw new Error('Server error processing booking. Please check your connection and try again.');
+      }
+
       if (!res.ok || !json.success) {
         throw new Error(json.error || 'Failed to submit booking.');
       }
