@@ -595,7 +595,7 @@ export const CalendlyCalendar: React.FC = () => {
             <div className="pt-6 border-t border-slate-200/80 space-y-4">
               <div className="flex items-center justify-between">
                 <h4 className="text-base font-bold text-slate-900">
-                  Select Timing Slot for {format(selectedDate, 'MMM d, yyyy')}
+                  Select The Slot for {format(selectedDate, 'MMM d, yyyy')}
                 </h4>
                 {slotsLoading && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
               </div>
@@ -653,7 +653,7 @@ export const CalendlyCalendar: React.FC = () => {
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Rahul Sharma"
+                    placeholder="Full Name"
                     className="w-full px-4 py-3 glass-input text-sm text-slate-900"
                   />
                 </div>
@@ -667,7 +667,7 @@ export const CalendlyCalendar: React.FC = () => {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="rahul.sharma@example.com"
+                    placeholder="Email Address"
                     className="w-full px-4 py-3 glass-input text-sm text-slate-900"
                   />
                 </div>
@@ -682,7 +682,7 @@ export const CalendlyCalendar: React.FC = () => {
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+91 9876543210"
+                  placeholder="Phone Number"
                   className="w-full px-4 py-3 glass-input text-sm text-slate-900"
                 />
               </div>

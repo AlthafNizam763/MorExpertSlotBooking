@@ -78,7 +78,7 @@ export default function AdminLoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@morexpert.com"
+                placeholder="Admin Email"
                 className="w-full pl-12 pr-4 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-sm text-white focus:border-primary focus:outline-none"
               />
             </div>

@@ -46,8 +46,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `OTP sent to ${normalizedEmail}. (For testing, enter code: ${code})`,
-      testOtp: code, // Auto-exposed for instant developer/user testing convenience
+      message: `OTP verification code sent. (Enter code: ${code})`,
+      testOtp: code,
       expiresInSeconds: 300,
       resendInSeconds: 30,
     });

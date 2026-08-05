@@ -77,11 +77,10 @@ export const AdminSidebar: React.FC = () => {
       <div className="space-y-4 pt-6 border-t border-slate-800">
         <div className="flex items-center gap-3 px-2">
           <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-white font-bold text-sm">
-            A
+            <MorExpertLogo size={40} />
           </div>
           <div className="overflow-hidden text-xs">
             <p className="font-bold text-white truncate">MorExpert Admin</p>
-            <p className="text-slate-500 truncate">admin@morexpert.com</p>
           </div>
         </div>
 
