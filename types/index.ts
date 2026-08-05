@@ -98,3 +98,17 @@ export interface IActivityLog {
   ip?: string;
   timestamp: string;
 }
+
+export interface IOtpVerification {
+  _id?: string;
+  email: string;
+  emailOtp: string;
+  emailVerified: number; // 0 = Not Verified, 1 = Verified
+  emailCreatedAt: string;
+  emailExpiresAt: string;
+  phone: string;
+  phoneOtp: string;
+  phoneVerified: number; // 0 = Not Verified, 1 = Verified
+  phoneCreatedAt: string;
+  phoneExpiresAt: string;
+}

@@ -5,6 +5,7 @@ import { existsSync, mkdirSync } from 'fs';
 import connectToDatabase from '@/lib/mongodb';
 import Booking from '@/lib/models/Booking';
 import Slot from '@/lib/models/Slot';
+import OtpVerification from '@/lib/models/OtpVerification';
 import { generateBookingId } from '@/lib/utils';
 import { fallbackStore } from '@/lib/fallbackStore';
 import { IBooking } from '@/types';
@@ -113,6 +114,29 @@ export async function POST(req: Request) {
       );
     }
 
+    const conn = await connectToDatabase();
+    if (conn) {
+      const normalizedEmail = email.trim().toLowerCase();
+      const normalizedPhone = phone.trim();
+
+      const otpRecord = await OtpVerification.findOne({
+        email: normalizedEmail,
+        phone: normalizedPhone,
+      });
+
+      if (!otpRecord || otpRecord.emailVerified !== 1 || otpRecord.phoneVerified !== 1) {
+        return NextResponse.json(
+          {
+            error:
+              'Booking rejected: Both Email and Phone Number must be verified via 6-digit OTP before slot reservation.',
+            emailVerified: otpRecord?.emailVerified || 0,
+            phoneVerified: otpRecord?.phoneVerified || 0,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     let resumeUrl = '';
 
     // File validation: PDF check & 10MB limit (if uploaded)
@@ -154,7 +178,6 @@ export async function POST(req: Request) {
       createdAt: new Date().toISOString(),
     };
 
-    const conn = await connectToDatabase();
     let createdBooking: any = null;
 
     if (conn) {

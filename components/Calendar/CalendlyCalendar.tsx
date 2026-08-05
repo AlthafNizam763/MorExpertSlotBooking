@@ -34,6 +34,7 @@ import {
   Check,
   ShieldCheck,
   Mail,
+  Phone as PhoneIcon,
   RefreshCw,
   Package as PackageIcon,
   CheckCircle2,
@@ -68,9 +69,16 @@ function CalendlyCalendarContent() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
 
-  // OTP Verification State
+  // Dual OTP Verification State
   const [showOtpModal, setShowOtpModal] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
+  const [emailOtpCode, setEmailOtpCode] = useState('');
+  const [phoneOtpCode, setPhoneOtpCode] = useState('');
+  const [emailVerifiedStatus, setEmailVerifiedStatus] = useState<number>(0);
+  const [phoneVerifiedStatus, setPhoneVerifiedStatus] = useState<number>(0);
+
+  const [testEmailOtp, setTestEmailOtp] = useState('');
+  const [testPhoneOtp, setTestPhoneOtp] = useState('');
+
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [otpError, setOtpError] = useState('');
@@ -92,7 +100,7 @@ function CalendlyCalendarContent() {
         if (json.success && Array.isArray(json.data)) {
           const active = json.data.filter((p: IPackage) => p.isActive !== false);
           setPackages(active);
-          
+
           if (urlPackageId) {
             const found = active.find((p: IPackage) => p._id === urlPackageId);
             if (found) setSelectedPackage(found);
@@ -182,26 +190,69 @@ function CalendlyCalendarContent() {
       return;
     }
 
-    // Trigger OTP sending
+    // Trigger Dual OTP sending (Email & Phone)
     setSendingOtp(true);
     setOtpError('');
     try {
       const res = await fetch('/api/otp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, phone, target: 'both' }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Failed to send OTP.');
+        throw new Error(json.error || 'Failed to send OTPs.');
       }
+
+      setTestEmailOtp(json.emailOtp || '');
+      setTestPhoneOtp(json.phoneOtp || '');
+      setEmailOtpCode(json.emailOtp || '');
+      setPhoneOtpCode(json.phoneOtp || '');
+      setEmailVerifiedStatus(json.emailVerified || 0);
+      setPhoneVerifiedStatus(json.phoneVerified || 0);
 
       setOtpSuccessMessage(json.message);
       setShowOtpModal(true);
       setResendTimer(30);
-      toast.info(`OTP code sent to ${email}`, 'Verification Code Sent');
+      toast.info(`OTP codes generated and saved to MongoDB.`, 'Dual OTP Verification');
     } catch (err: any) {
-      toast.error(err.message || 'Could not send verification OTP.', 'OTP Error');
+      toast.error(err.message || 'Could not send verification OTPs.', 'OTP Error');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleResendOtp = async (target: 'email' | 'phone' | 'both') => {
+    setSendingOtp(true);
+    setOtpError('');
+    try {
+      const res = await fetch('/api/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, phone, target }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Resend failed.');
+      }
+
+      if (target === 'email' || target === 'both') {
+        setTestEmailOtp(json.emailOtp || '');
+        setEmailOtpCode(json.emailOtp || '');
+        setEmailVerifiedStatus(0);
+      }
+
+      if (target === 'phone' || target === 'both') {
+        setTestPhoneOtp(json.phoneOtp || '');
+        setPhoneOtpCode(json.phoneOtp || '');
+        setPhoneVerifiedStatus(0);
+      }
+
+      setOtpSuccessMessage(json.message);
+      setResendTimer(30);
+      toast.success(`New OTP code sent for ${target.toUpperCase()}`, 'OTP Resent');
+    } catch (err: any) {
+      setOtpError(err.message || 'Failed to resend OTP.');
     } finally {
       setSendingOtp(false);
     }
@@ -209,8 +260,12 @@ function CalendlyCalendarContent() {
 
   const handleVerifyOtpAndCreateBooking = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otpCode || otpCode.length < 6) {
-      setOtpError('Please enter the 6-digit OTP code.');
+    if (!emailOtpCode && emailVerifiedStatus !== 1) {
+      setOtpError('Please enter the 6-digit Email OTP code.');
+      return;
+    }
+    if (!phoneOtpCode && phoneVerifiedStatus !== 1) {
+      setOtpError('Please enter the 6-digit Phone OTP code.');
       return;
     }
 
@@ -218,19 +273,33 @@ function CalendlyCalendarContent() {
     setOtpError('');
 
     try {
-      // 1. Verify OTP
+      // 1. Verify Both OTPs against MongoDB
       const verifyRes = await fetch('/api/otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: otpCode }),
+        body: JSON.stringify({
+          email,
+          emailOtp: emailOtpCode,
+          phone,
+          phoneOtp: phoneOtpCode,
+        }),
       });
 
       const verifyJson = await verifyRes.json();
       if (!verifyRes.ok || !verifyJson.success) {
-        throw new Error(verifyJson.error || 'Invalid OTP code.');
+        if (verifyJson.emailVerified !== undefined) setEmailVerifiedStatus(verifyJson.emailVerified);
+        if (verifyJson.phoneVerified !== undefined) setPhoneVerifiedStatus(verifyJson.phoneVerified);
+        throw new Error(verifyJson.error || 'OTP Verification failed.');
       }
 
-      // 2. Submit Booking FormData
+      setEmailVerifiedStatus(verifyJson.emailVerified);
+      setPhoneVerifiedStatus(verifyJson.phoneVerified);
+
+      if (!verifyJson.allVerified && (verifyJson.emailVerified !== 1 || verifyJson.phoneVerified !== 1)) {
+        throw new Error('Both Email and Phone Number must be verified to complete booking.');
+      }
+
+      // 2. Submit Booking FormData only after MongoDB confirms both verified
       const formData = new FormData();
       formData.append('name', name);
       formData.append('email', email);
@@ -270,29 +339,6 @@ function CalendlyCalendarContent() {
     }
   };
 
-  const handleResendOtp = async () => {
-    setSendingOtp(true);
-    setOtpError('');
-    try {
-      const res = await fetch('/api/otp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Resend failed.');
-      }
-
-      setOtpSuccessMessage(json.message);
-      setResendTimer(30);
-    } catch (err: any) {
-      setOtpError(err.message || 'Failed to resend OTP.');
-    } finally {
-      setSendingOtp(false);
-    }
-  };
-
   const fallbackCopyText = (text: string) => {
     const textArea = document.createElement('textarea');
     textArea.value = text;
@@ -324,18 +370,20 @@ function CalendlyCalendarContent() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* OTP VERIFICATION MODAL */}
+      {/* DUAL OTP VERIFICATION MODAL */}
       {showOtpModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 font-sans">
-          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-100 space-y-6 text-slate-800 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 space-y-6 text-slate-800 animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
-                  <ShieldCheck className="w-5 h-5" />
+                  <ShieldCheck className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Email Verification</h3>
-                  <p className="text-xs text-slate-500">OTP sent to {email}</p>
+                  <h3 className="text-lg font-bold text-slate-900">Dual OTP Verification Required</h3>
+                  <p className="text-xs text-slate-500">
+                    Verify both Email & Phone Number stored in MongoDB
+                  </p>
                 </div>
               </div>
               <button
@@ -346,6 +394,20 @@ function CalendlyCalendarContent() {
               </button>
             </div>
 
+            {/* Test Codes Indicator Banner */}
+            {(testEmailOtp || testPhoneOtp) && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-2xl space-y-1 font-mono font-medium">
+                <div className="flex items-center gap-1 font-bold text-emerald-800 font-sans">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>MongoDB OTP Verification Codes (Test/Demo Mode):</span>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span>Email OTP: <strong className="text-primary font-bold text-sm">{testEmailOtp || '123456'}</strong></span>
+                  <span>Phone OTP: <strong className="text-primary font-bold text-sm">{testPhoneOtp || '123456'}</strong></span>
+                </div>
+              </div>
+            )}
+
             {otpSuccessMessage && (
               <div className="p-3 bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-2xl flex items-center gap-2 font-medium">
                 <Mail className="w-4 h-4 text-primary shrink-0" />
@@ -354,58 +416,120 @@ function CalendlyCalendarContent() {
             )}
 
             {otpError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl flex items-center gap-2">
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl flex items-center gap-2 font-medium">
                 <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                 <span>{otpError}</span>
               </div>
             )}
 
             <form onSubmit={handleVerifyOtpAndCreateBooking} className="space-y-5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                  Enter 6-Digit OTP Code *
-                </label>
-                <input
-                  type="text"
-                  maxLength={6}
-                  required
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="e.g. 123456"
-                  className="w-full text-center text-2xl font-mono tracking-widest py-3 px-4 glass-input font-bold text-primary"
-                />
-                <p className="text-[11px] text-slate-400 mt-1.5 text-center">
-                  OTP expires in 5 minutes.
-                </p>
+              {/* EMAIL OTP SECTION */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Mail className="w-4 h-4 text-primary" />
+                    1. Email OTP ({email})
+                  </span>
+
+                  <span
+                    className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                      emailVerifiedStatus === 1
+                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                        : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                    }`}
+                  >
+                    {emailVerifiedStatus === 1 ? '🟢 Email Verified' : '🟡 Pending OTP'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    disabled={emailVerifiedStatus === 1}
+                    value={emailOtpCode}
+                    onChange={(e) => setEmailOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="e.g. 123456"
+                    className="flex-grow text-center text-xl font-mono tracking-widest py-2 px-3 glass-input font-bold text-primary disabled:bg-slate-200/50"
+                  />
+                  <button
+                    type="button"
+                    disabled={resendTimer > 0 || sendingOtp}
+                    onClick={() => handleResendOtp('email')}
+                    className="py-2.5 px-3 text-xs font-bold text-primary hover:bg-primary/10 rounded-xl border border-primary/20 disabled:text-slate-400 disabled:border-slate-200 whitespace-nowrap"
+                  >
+                    Resend Email OTP
+                  </button>
+                </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={verifyingOtp}
-                className="w-full py-4 px-6 text-sm font-bold text-white bg-primary hover:bg-blue-600 rounded-2xl shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
-              >
-                {verifyingOtp ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <CheckCircle className="w-5 h-5" />
-                    <span>Verify OTP & Create Booking</span>
-                  </>
-                )}
-              </button>
+              {/* PHONE OTP SECTION */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <PhoneIcon className="w-4 h-4 text-primary" />
+                    2. Phone OTP ({phone})
+                  </span>
 
-              <div className="flex items-center justify-between text-xs pt-2">
-                <span className="text-slate-400">Didn't receive code?</span>
+                  <span
+                    className={`text-[11px] font-extrabold px-2.5 py-0.5 rounded-full border ${
+                      phoneVerifiedStatus === 1
+                        ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                        : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                    }`}
+                  >
+                    {phoneVerifiedStatus === 1 ? '🟢 Phone Verified' : '🟡 Pending OTP'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    disabled={phoneVerifiedStatus === 1}
+                    value={phoneOtpCode}
+                    onChange={(e) => setPhoneOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="e.g. 123456"
+                    className="flex-grow text-center text-xl font-mono tracking-widest py-2 px-3 glass-input font-bold text-primary disabled:bg-slate-200/50"
+                  />
+                  <button
+                    type="button"
+                    disabled={resendTimer > 0 || sendingOtp}
+                    onClick={() => handleResendOtp('phone')}
+                    className="py-2.5 px-3 text-xs font-bold text-primary hover:bg-primary/10 rounded-xl border border-primary/20 disabled:text-slate-400 disabled:border-slate-200 whitespace-nowrap"
+                  >
+                    Resend Phone OTP
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={verifyingOtp}
+                  className="w-full py-4 px-6 text-sm font-bold text-white bg-gradient-to-r from-primary to-blue-600 hover:from-blue-600 hover:to-primary rounded-2xl shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
+                >
+                  {verifyingOtp ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      <span>Verify Both OTPs & Reserve Slot</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between text-xs pt-1 text-slate-400">
+                <span>Resend Timer: {resendTimer > 0 ? `${resendTimer}s` : 'Available'}</span>
                 <button
                   type="button"
                   disabled={resendTimer > 0 || sendingOtp}
-                  onClick={handleResendOtp}
+                  onClick={() => handleResendOtp('both')}
                   className="font-bold text-primary hover:underline disabled:text-slate-400 flex items-center gap-1"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${sendingOtp ? 'animate-spin' : ''}`} />
-                  <span>
-                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP Now'}
-                  </span>
+                  <span>Resend Both OTPs</span>
                 </button>
               </div>
             </form>
@@ -422,9 +546,9 @@ function CalendlyCalendarContent() {
             </div>
 
             <div>
-              <h3 className="text-2xl font-extrabold text-slate-900">OTP Verified & Booking Submitted!</h3>
+              <h3 className="text-2xl font-extrabold text-slate-900">Email & Phone OTP Verified!</h3>
               <p className="text-sm text-slate-500 mt-1">
-                Your request is now <span className="font-bold text-amber-600">Pending Admin Approval</span>.
+                Your slot is reserved and pending admin confirmation.
               </p>
             </div>
 
@@ -541,7 +665,7 @@ function CalendlyCalendarContent() {
               </div>
               <div className="flex items-center gap-3">
                 <ShieldCheck className="w-5 h-5 text-accent shrink-0" />
-                <span>Requires Email OTP Verification</span>
+                <span>Requires Email & Phone Dual OTP</span>
               </div>
               <div className="flex items-center gap-3">
                 <FileText className="w-5 h-5 text-accent shrink-0" />
@@ -720,10 +844,6 @@ function CalendlyCalendarContent() {
                 {availableSlots.map((s, idx) => {
                   const isSelected = selectedSlot === s.time;
 
-                  // Remaining slots count logic:
-                  // 🟢 Available Slots (remaining > 1) – Green
-                  // 🟡 Limited Slots (Only 1 Slot Left) – Yellow
-                  // 🔴 Fully Booked / Disabled – Red
                   const isBookable = s.isAvailable && (s.remaining === undefined || s.remaining > 0);
                   const remainingCount = s.remaining !== undefined ? s.remaining : (s.isAvailable ? 1 : 0);
 
@@ -918,12 +1038,12 @@ function CalendlyCalendarContent() {
                 {sendingOtp ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Sending Email OTP...</span>
+                    <span>Sending Dual OTPs (Email & Phone)...</span>
                   </>
                 ) : (
                   <>
                     <ShieldCheck className="w-5 h-5" />
-                    <span>Verify Email OTP & Confirm Slot</span>
+                    <span>Proceed to Dual OTP Verification</span>
                   </>
                 )}
               </button>
