@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import confetti from 'canvas-confetti';
 import {
   format,
@@ -13,7 +14,6 @@ import {
   eachDayOfInterval,
   isSameMonth,
   isSameDay,
-  isToday,
   isBefore,
   startOfDay,
 } from 'date-fns';
@@ -35,17 +35,28 @@ import {
   ShieldCheck,
   Mail,
   RefreshCw,
+  Package as PackageIcon,
+  CheckCircle2,
 } from 'lucide-react';
-import { ISlot, IBooking } from '@/types';
+import { ISlot, IBooking, IPackage } from '@/types';
 import { formatPrice } from '@/lib/utils';
 import { useToast } from '@/components/Notification/ToastContext';
 
-export const CalendlyCalendar: React.FC = () => {
+function CalendlyCalendarContent() {
   const toast = useToast();
+  const searchParams = useSearchParams();
+  const urlPackageId = searchParams.get('packageId');
+
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 
+  // Packages state
+  const [packages, setPackages] = useState<IPackage[]>([]);
+  const [selectedPackage, setSelectedPackage] = useState<IPackage | null>(null);
+  const [loadingPackages, setLoadingPackages] = useState<boolean>(true);
+
+  // Slots state
   const [slotsLoading, setSlotsLoading] = useState<boolean>(false);
   const [availableSlots, setAvailableSlots] = useState<ISlot[]>([]);
 
@@ -66,11 +77,38 @@ export const CalendlyCalendar: React.FC = () => {
   const [otpSuccessMessage, setOtpSuccessMessage] = useState('');
   const [resendTimer, setResendTimer] = useState(30);
 
-  const [submitting, setSubmitting] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState<IBooking | null>(null);
   const [copiedId, setCopiedId] = useState(false);
 
   const dateKey = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
+
+  // Fetch Packages
+  useEffect(() => {
+    async function fetchPackages() {
+      try {
+        setLoadingPackages(true);
+        const res = await fetch('/api/packages');
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          const active = json.data.filter((p: IPackage) => p.isActive !== false);
+          setPackages(active);
+          
+          if (urlPackageId) {
+            const found = active.find((p: IPackage) => p._id === urlPackageId);
+            if (found) setSelectedPackage(found);
+            else if (active.length > 0) setSelectedPackage(active[0]);
+          } else if (active.length > 0) {
+            setSelectedPackage(active[0]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch packages:', err);
+      } finally {
+        setLoadingPackages(false);
+      }
+    }
+    fetchPackages();
+  }, [urlPackageId]);
 
   // Fetch slots for selected date
   useEffect(() => {
@@ -131,8 +169,12 @@ export const CalendlyCalendar: React.FC = () => {
 
   const handleInitiateBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedPackage) {
+      toast.warning('Please select a review package before booking.', 'Package Required');
+      return;
+    }
     if (!selectedDate || !selectedSlot) {
-      toast.warning('Please select a date and slot timing.', 'Slot Required');
+      toast.warning('Please select a date and slot.', 'Slot Required');
       return;
     }
     if (!name || !email || !phone) {
@@ -195,6 +237,8 @@ export const CalendlyCalendar: React.FC = () => {
       formData.append('phone', phone);
       formData.append('date', dateKey);
       formData.append('slot', selectedSlot!);
+      formData.append('packageName', selectedPackage ? selectedPackage.name : 'Standard Package');
+      formData.append('packagePrice', selectedPackage ? selectedPackage.price.toString() : '500');
       formData.append('notes', notes);
       if (resumeFile) {
         formData.append('resume', resumeFile);
@@ -400,24 +444,49 @@ export const CalendlyCalendar: React.FC = () => {
                 <span className="text-slate-500">Candidate Name</span>
                 <span className="font-semibold text-slate-800">{bookingSuccess.name}</span>
               </div>
+
+              {bookingSuccess.packageName && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Selected Package</span>
+                  <span className="font-semibold text-primary">{bookingSuccess.packageName}</span>
+                </div>
+              )}
+
               <div className="flex justify-between">
                 <span className="text-slate-500">Date & Slot</span>
                 <span className="font-semibold text-slate-800">
                   {bookingSuccess.date} ({bookingSuccess.slot})
                 </span>
               </div>
+
               <div className="flex justify-between">
                 <span className="text-slate-500">Status</span>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
                   {bookingSuccess.status}
                 </span>
               </div>
+
               <div className="flex justify-between">
                 <span className="text-slate-500">Assigned Price</span>
                 <span className="font-bold text-primary">
-                  {formatPrice(bookingSuccess.price)}
+                  {formatPrice(bookingSuccess.price || bookingSuccess.packagePrice)}
                 </span>
               </div>
+
+              {/* Uploaded Resume section only if resume exists */}
+              {bookingSuccess.resume && bookingSuccess.resume.trim() !== '' && (
+                <div className="flex justify-between pt-2 border-t border-slate-200">
+                  <span className="text-slate-500">Uploaded Resume</span>
+                  <a
+                    href={bookingSuccess.resume}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-bold text-primary hover:underline"
+                  >
+                    View Resume PDF
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col gap-3">
@@ -465,30 +534,36 @@ export const CalendlyCalendar: React.FC = () => {
                 <span>Selected Date: {selectedDate ? format(selectedDate, 'MMMM d, yyyy') : 'None'}</span>
               </div>
               <div className="flex items-center gap-3">
+                <PackageIcon className="w-5 h-5 text-accent shrink-0" />
+                <span>
+                  Package: {selectedPackage ? `${selectedPackage.name} (${formatPrice(selectedPackage.price)})` : 'Standard Review'}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
                 <ShieldCheck className="w-5 h-5 text-accent shrink-0" />
                 <span>Requires Email OTP Verification</span>
               </div>
               <div className="flex items-center gap-3">
                 <FileText className="w-5 h-5 text-accent shrink-0" />
-                <span>PDF Resume Upload Required (Max 10MB)</span>
+                <span>PDF Resume Upload (Max 10MB)</span>
               </div>
             </div>
           </div>
 
           {/* Color Indicators Legend */}
           <div className="p-4 bg-slate-800/80 rounded-2xl border border-slate-700 space-y-2 text-xs">
-            <p className="font-semibold text-slate-300 mb-1 uppercase tracking-wider">Slot Availability</p>
+            <p className="font-semibold text-slate-300 mb-1 uppercase tracking-wider">Slot Availability Logic</p>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                Available Slots
+                Available Slots (&gt;1 left)
               </span>
               <span className="text-emerald-400 font-semibold">Green</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                Limited (1 left)
+                Limited (1 Slot Left)
               </span>
               <span className="text-amber-400 font-semibold">Yellow</span>
             </div>
@@ -504,8 +579,53 @@ export const CalendlyCalendar: React.FC = () => {
 
         {/* RIGHT CALENDAR & BOOKING ENGINE */}
         <div className="lg:col-span-8 p-6 sm:p-8 bg-white/80 space-y-8">
-          {/* STEP 1: MONTHLY CALENDAR GRID */}
-          <div>
+          {/* STEP 1: PACKAGE SELECTION SECTION */}
+          <div className="space-y-4">
+            <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <PackageIcon className="w-5 h-5 text-primary" />
+              <span>Select Package</span>
+            </h3>
+
+            {loadingPackages ? (
+              <div className="p-4 text-center text-slate-400">
+                <Loader2 className="w-5 h-5 animate-spin mx-auto text-primary" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {packages.map((pkg) => {
+                  const isSelected = selectedPackage?._id === pkg._id;
+                  return (
+                    <button
+                      key={pkg._id}
+                      type="button"
+                      onClick={() => setSelectedPackage(pkg)}
+                      className={`p-4 rounded-2xl border text-left transition-all relative flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-slate-900 text-white border-primary shadow-xl ring-2 ring-primary/40'
+                          : 'bg-white hover:border-slate-300 border-slate-200 text-slate-800 shadow-sm'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-[10px] font-extrabold uppercase ${isSelected ? 'text-sky-400' : 'text-slate-500'}`}>
+                            {pkg.isPopular ? 'Popular' : 'Package'}
+                          </span>
+                          {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                        </div>
+                        <p className="text-sm font-extrabold truncate">{pkg.name}</p>
+                        <p className={`text-xs mt-1 font-bold ${isSelected ? 'text-sky-300' : 'text-primary'}`}>
+                          {formatPrice(pkg.price)}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* STEP 2: MONTHLY CALENDAR GRID */}
+          <div className="pt-6 border-t border-slate-200/80">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-slate-900">
                 {format(currentMonth, 'MMMM yyyy')}
@@ -543,10 +663,6 @@ export const CalendlyCalendar: React.FC = () => {
                 const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
                 const isCurrentMonth = isSameMonth(day, currentMonth);
 
-                let statusColorClass = 'bg-emerald-500';
-                if (day.getDate() % 5 === 0) statusColorClass = 'bg-amber-500';
-                if (day.getDate() % 7 === 0 || isPast) statusColorClass = 'bg-rose-500';
-
                 return (
                   <button
                     key={idx}
@@ -570,7 +686,7 @@ export const CalendlyCalendar: React.FC = () => {
                       {!isPast && isCurrentMonth && (
                         <span
                           className={`w-2 h-2 rounded-full ${
-                            isSelected ? 'bg-white' : statusColorClass
+                            isSelected ? 'bg-white' : 'bg-emerald-500'
                           }`}
                         />
                       )}
@@ -581,7 +697,7 @@ export const CalendlyCalendar: React.FC = () => {
                           isSelected ? 'text-blue-100' : 'text-slate-400'
                         }`}
                       >
-                        {statusColorClass === 'bg-rose-500' ? 'Full' : '3 Slots'}
+                        Slots
                       </span>
                     )}
                   </button>
@@ -590,7 +706,7 @@ export const CalendlyCalendar: React.FC = () => {
             </div>
           </div>
 
-          {/* STEP 2: SLOT TIMING SELECTION */}
+          {/* STEP 3: SELECT THE SLOT (Slot 1, Slot 2, Slot 3...) */}
           {selectedDate && (
             <div className="pt-6 border-t border-slate-200/80 space-y-4">
               <div className="flex items-center justify-between">
@@ -601,28 +717,80 @@ export const CalendlyCalendar: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {availableSlots.map((s) => {
+                {availableSlots.map((s, idx) => {
                   const isSelected = selectedSlot === s.time;
+
+                  // Remaining slots count logic:
+                  // 🟢 Available Slots (remaining > 1) – Green
+                  // 🟡 Limited Slots (Only 1 Slot Left) – Yellow
+                  // 🔴 Fully Booked / Disabled – Red
+                  const isBookable = s.isAvailable && (s.remaining === undefined || s.remaining > 0);
+                  const remainingCount = s.remaining !== undefined ? s.remaining : (s.isAvailable ? 1 : 0);
+
+                  let statusText = s.statusText;
+                  let colorTheme = s.statusColor || 'green';
+
+                  if (!isBookable || remainingCount <= 0) {
+                    colorTheme = 'red';
+                    statusText = 'Fully Booked';
+                  } else if (remainingCount === 1) {
+                    colorTheme = 'yellow';
+                    statusText = 'Limited (1 Slot Left)';
+                  } else {
+                    colorTheme = 'green';
+                    statusText = `Available (${remainingCount} Slots Left)`;
+                  }
+
+                  const displayName = s.displayName || `Slot ${idx + 1}`;
+
                   return (
                     <button
                       key={s.time}
-                      disabled={!s.isAvailable}
+                      disabled={!isBookable}
                       onClick={() => setSelectedSlot(s.time)}
-                      className={`p-4 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                        !s.isAvailable
-                          ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                      className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 ${
+                        !isBookable
+                          ? 'bg-rose-50/50 border-rose-200 text-slate-400 cursor-not-allowed opacity-60'
                           : isSelected
                           ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 font-bold'
-                          : 'bg-white hover:border-primary/50 border-slate-200 text-slate-800 shadow-sm'
+                          : colorTheme === 'yellow'
+                          ? 'bg-amber-50/80 hover:border-amber-400 border-amber-200 text-slate-900'
+                          : colorTheme === 'red'
+                          ? 'bg-rose-50/80 border-rose-200 text-rose-700'
+                          : 'bg-emerald-50/40 hover:border-emerald-400 border-emerald-200 text-slate-900'
                       }`}
                     >
-                      <div>
-                        <p className="text-sm font-bold">{s.time}</p>
-                        <p className={`text-xs ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
-                          {s.isAvailable ? 'Available' : 'Booked'}
-                        </p>
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-base font-extrabold">{displayName}</span>
+                        <span
+                          className={`w-3 h-3 rounded-full shrink-0 ${
+                            isSelected
+                              ? 'bg-white'
+                              : colorTheme === 'green'
+                              ? 'bg-emerald-500'
+                              : colorTheme === 'yellow'
+                              ? 'bg-amber-500'
+                              : 'bg-rose-500'
+                          }`}
+                        />
                       </div>
-                      <Clock className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
+
+                      <div className="flex items-center justify-between w-full">
+                        <span
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            isSelected
+                              ? 'bg-white/20 text-white'
+                              : colorTheme === 'green'
+                              ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20'
+                              : colorTheme === 'yellow'
+                              ? 'bg-amber-500/15 text-amber-700 border border-amber-500/30 font-bold'
+                              : 'bg-rose-500/10 text-rose-600 border border-rose-500/20 font-bold'
+                          }`}
+                        >
+                          {statusText}
+                        </span>
+                        <Clock className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
+                      </div>
                     </button>
                   );
                 })}
@@ -630,17 +798,24 @@ export const CalendlyCalendar: React.FC = () => {
             </div>
           )}
 
-          {/* STEP 3: CANDIDATE DETAILS & RESUME UPLOAD FORM */}
+          {/* STEP 4: CANDIDATE DETAILS & RESUME UPLOAD FORM */}
           {selectedSlot && (
             <form
               onSubmit={handleInitiateBooking}
               className="pt-6 border-t border-slate-200/80 space-y-5 animate-in fade-in duration-300"
             >
-              <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <h4 className="text-lg font-bold text-slate-900 flex items-center justify-between flex-wrap gap-2">
                 <span>Enter Your Details</span>
-                <span className="text-xs font-semibold px-2.5 py-0.5 bg-primary/10 text-primary rounded-full">
-                  Slot: {selectedSlot}
-                </span>
+                <div className="flex items-center gap-2">
+                  {selectedPackage && (
+                    <span className="text-xs font-semibold px-3 py-1 bg-amber-500/10 text-amber-700 border border-amber-500/20 rounded-full">
+                      Package: {selectedPackage.name}
+                    </span>
+                  )}
+                  <span className="text-xs font-semibold px-3 py-1 bg-primary/10 text-primary rounded-full">
+                    Selected: {availableSlots.find((s) => s.time === selectedSlot)?.displayName || 'Slot'}
+                  </span>
+                </div>
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -757,5 +932,20 @@ export const CalendlyCalendar: React.FC = () => {
         </div>
       </div>
     </div>
+  );
+}
+
+export const CalendlyCalendar: React.FC = () => {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-12 text-center text-slate-500">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary mb-2" />
+          <p className="text-sm font-medium">Loading Calendar...</p>
+        </div>
+      }
+    >
+      <CalendlyCalendarContent />
+    </Suspense>
   );
 };

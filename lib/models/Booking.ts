@@ -11,6 +11,8 @@ export interface IBookingDocument extends Document {
   slot: string;
   status: string;
   price?: number | null;
+  packageName?: string;
+  packagePrice?: number;
   remarks?: string;
   privateNotes?: string;
   publicNotes?: string;
@@ -47,6 +49,8 @@ const BookingSchema: Schema = new Schema(
       default: 'Pending Admin Approval',
     },
     price: { type: Number, default: null },
+    packageName: { type: String, default: '' },
+    packagePrice: { type: Number, default: null },
     remarks: { type: String, default: '' },
     privateNotes: { type: String, default: '' },
     publicNotes: { type: String, default: '' },

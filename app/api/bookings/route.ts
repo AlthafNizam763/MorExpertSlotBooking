@@ -101,6 +101,9 @@ export async function POST(req: Request) {
     const date = formData.get('date') as string;
     const slot = formData.get('slot') as string;
     const notes = (formData.get('notes') as string) || '';
+    const packageName = (formData.get('packageName') as string) || '';
+    const packagePriceStr = formData.get('packagePrice') as string;
+    const packagePrice = packagePriceStr ? Number(packagePriceStr) : null;
     const resumeFile = formData.get('resume') as File | null;
 
     if (!name || !email || !phone || !date || !slot) {
@@ -144,7 +147,9 @@ export async function POST(req: Request) {
       date,
       slot,
       status: 'Pending',
-      price: null,
+      price: packagePrice,
+      packageName,
+      packagePrice,
       remarks: '',
       createdAt: new Date().toISOString(),
     };

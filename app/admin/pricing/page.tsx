@@ -68,6 +68,12 @@ export default function AdminPricingPage() {
               Configure default slot booking prices and promotional discount rules.
             </p>
           </div>
+          <a
+            href="/admin/packages"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-md transition-all"
+          >
+            <span>Manage Review Packages</span>
+          </a>
         </div>
 
         {successMsg && (

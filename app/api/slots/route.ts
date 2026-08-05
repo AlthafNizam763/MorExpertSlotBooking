@@ -48,20 +48,43 @@ export async function GET(req: Request) {
         dbSlots = fallbackStore.slots.filter((s) => s.date === date);
       }
 
-      // Merge defaults with DB overrides
-      const resultSlots = DEFAULT_TIMINGS.map((time) => {
+      // Merge defaults with DB overrides and compute status colors & remaining count
+      const resultSlots = DEFAULT_TIMINGS.map((time, index) => {
         const custom = dbSlots.find((s) => s.time === time);
         const booked = bookedCountsBySlot[time] || 0;
-        const capacity = custom?.capacity || 1;
-        const isAvailable = custom ? custom.isAvailable : booked < capacity;
+        const capacity = custom?.capacity !== undefined ? custom.capacity : 1;
+        const isEnabledInDb = custom ? custom.isAvailable : true;
+        const remaining = Math.max(0, capacity - booked);
+
+        const slotBookable = isEnabledInDb && remaining > 0;
+        
+        let statusColor: 'green' | 'yellow' | 'red' = 'green';
+        let statusText = '';
+
+        if (!slotBookable || remaining <= 0) {
+          statusColor = 'red';
+          statusText = 'Fully Booked';
+        } else if (remaining === 1) {
+          statusColor = 'yellow';
+          statusText = 'Limited (1 Slot Left)';
+        } else {
+          statusColor = 'green';
+          statusText = `Available (${remaining} Slots Left)`;
+        }
+
+        const displayName = `Slot ${index + 1}`;
 
         return {
-          _id: custom?._id || `${date}-${time.replace(/[^a-zA-Z0-9]/g, '')}`,
+          _id: custom?._id ? custom._id.toString() : `${date}-${time.replace(/[^a-zA-Z0-9]/g, '')}`,
           date,
-          time,
+          time, // internal time value
+          displayName, // user-facing slot label e.g. "Slot 1"
           capacity,
           booked,
-          isAvailable: isAvailable && booked < capacity,
+          remaining,
+          isAvailable: slotBookable,
+          statusColor,
+          statusText,
         };
       });
 

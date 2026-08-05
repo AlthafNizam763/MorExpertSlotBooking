@@ -23,6 +23,7 @@ import {
   Check,
   Sparkles,
   RefreshCw,
+  Package,
 } from 'lucide-react';
 import { IBooking } from '@/types';
 import { formatPrice, getStatusBadgeClass } from '@/lib/utils';
@@ -229,6 +230,16 @@ function TrackContent() {
                       <p className="font-bold text-slate-900">{booking.name}</p>
                     </div>
 
+                    {booking.packageName && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-slate-500 font-semibold uppercase flex items-center gap-1.5">
+                          <Package className="w-3.5 h-3.5 text-primary" />
+                          Selected Package
+                        </p>
+                        <p className="font-bold text-primary">{booking.packageName}</p>
+                      </div>
+                    )}
+
                     <div className="space-y-1">
                       <p className="text-xs text-slate-500 font-semibold uppercase flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-primary" />
@@ -245,7 +256,7 @@ function TrackContent() {
                         Assigned Price
                       </p>
                       <p className="font-extrabold text-primary text-base">
-                        {formatPrice(booking.price)}
+                        {formatPrice(booking.price || booking.packagePrice)}
                       </p>
                     </div>
 
@@ -265,21 +276,24 @@ function TrackContent() {
                       <p className="font-medium text-slate-800">{booking.email}</p>
                     </div>
 
-                    <div className="space-y-1">
-                      <p className="text-xs text-slate-500 font-semibold uppercase flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-primary" />
-                        Uploaded Resume
-                      </p>
-                      <a
-                        href={booking.resume}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline bg-primary/10 px-3 py-1 rounded-lg"
-                      >
-                        <span>View PDF Resume</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
+                    {/* Uploaded Resume Section - Rendered ONLY if resume exists */}
+                    {booking.resume && booking.resume.trim() !== '' && (
+                      <div className="space-y-1">
+                        <p className="text-xs text-slate-500 font-semibold uppercase flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-primary" />
+                          Uploaded Resume
+                        </p>
+                        <a
+                          href={booking.resume}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline bg-primary/10 px-3 py-1 rounded-lg"
+                        >
+                          <span>View PDF Resume</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   {/* Public Admin Remarks section */}

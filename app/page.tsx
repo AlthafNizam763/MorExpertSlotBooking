@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Navbar } from '@/components/Navbar/Navbar';
@@ -19,9 +19,32 @@ import {
   Star,
   Award,
   UploadCloud,
+  FileText,
+  Loader2,
 } from 'lucide-react';
+import { IPackage } from '@/types';
+import { formatPrice } from '@/lib/utils';
 
 export default function LandingPage() {
+  const [packages, setPackages] = useState<IPackage[]>([]);
+  const [loadingPackages, setLoadingPackages] = useState(true);
+
+  useEffect(() => {
+    async function loadPackages() {
+      try {
+        const res = await fetch('/api/packages');
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          setPackages(json.data.filter((p: IPackage) => p.isActive !== false));
+        }
+      } catch (err) {
+        console.error('Failed to load packages:', err);
+      } finally {
+        setLoadingPackages(false);
+      }
+    }
+    loadPackages();
+  }, []);
   return (
     <div className="min-h-screen bg-background text-secondary flex flex-col font-sans selection:bg-accent/20">
       <Navbar />
@@ -235,58 +258,103 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-16">
               <span className="text-xs font-bold uppercase tracking-wider text-accent px-3 py-1 bg-accent/10 rounded-full">
-                Transparent & Flexible
+                Transparent & Flexible Packages
               </span>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-secondary mt-3">
-                Review Session Pricing
+                Review Session Packages
               </h2>
               <p className="text-slate-600 mt-3 text-base">
-                Admin reviews your specific resume requirements and assigns fair slot pricing starting at default ₹500.
+                Choose the perfect review package tailored to your career stage and goals.
               </p>
             </div>
 
-            <div className="max-w-md mx-auto glass-card p-8 rounded-3xl border border-primary/20 shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 px-4 py-1 bg-primary text-white text-xs font-bold uppercase rounded-bl-2xl">
-                Most Popular
+            {loadingPackages ? (
+              <div className="p-12 text-center text-slate-500">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary mb-2" />
+                <p className="text-sm font-medium">Loading review packages...</p>
               </div>
-
-              <div className="space-y-4">
-                <h3 className="text-2xl font-bold text-slate-900">Standard Resume Review</h3>
-                <p className="text-sm text-slate-600">
-                  Comprehensive 1-on-1 expert evaluation, line-by-line feedback, and ATS keyword report.
-                </p>
-
-                <div className="flex items-baseline gap-2 pt-2">
-                  <span className="text-4xl font-extrabold text-secondary">₹500</span>
-                  <span className="text-slate-500 text-sm font-medium">/ slot (Assigned by Admin)</span>
-                </div>
-
-                <ul className="space-y-3 pt-4 border-t border-slate-100 text-sm text-slate-700">
-                  {[
-                    'Full ATS Keyword & Formatting Scan',
-                    '1-on-1 Expert Review Session Slot',
-                    'Instant Booking ID Tracking',
-                    'Direct PDF Resume Annotation',
-                    'Actionable Revamp Recommendations',
-                  ].map((feat, i) => (
-                    <li key={i} className="flex items-center gap-3">
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                      <span>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="pt-6">
-                  <Link
-                    href="/book"
-                    className="w-full inline-flex items-center justify-center gap-2 py-4 px-6 font-bold text-white bg-primary hover:bg-blue-600 rounded-2xl shadow-lg shadow-primary/25 transition-all transform hover:-translate-y-0.5"
+            ) : packages.length === 0 ? (
+              <div className="text-center p-8 bg-white rounded-3xl border border-slate-200 text-slate-600">
+                <p>No active packages available at the moment.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {packages.map((pkg) => (
+                  <div
+                    key={pkg._id}
+                    className={`glass-card p-8 rounded-3xl border transition-all hover:shadow-2xl flex flex-col justify-between relative overflow-hidden ${
+                      pkg.isPopular
+                        ? 'border-primary/40 shadow-xl ring-2 ring-primary/20 bg-white'
+                        : 'border-slate-200 bg-white/80'
+                    }`}
                   >
-                    <span>Reserve Your Slot</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
+                    {pkg.isPopular && (
+                      <div className="absolute top-0 right-0 px-4 py-1.5 bg-gradient-to-r from-primary to-blue-600 text-white text-[11px] font-extrabold uppercase tracking-wider rounded-bl-2xl shadow-md">
+                        Most Popular
+                      </div>
+                    )}
+
+                    <div>
+                      <h3 className="text-2xl font-extrabold text-slate-900 mb-2">{pkg.name}</h3>
+                      <p className="text-sm text-slate-600 leading-relaxed mb-6">{pkg.description}</p>
+
+                      <div className="flex items-baseline gap-2 pb-6 border-b border-slate-100">
+                        <span className="text-4xl font-black text-secondary">{formatPrice(pkg.price)}</span>
+                        <span className="text-slate-500 text-xs font-medium">/ session</span>
+                      </div>
+
+                      {/* Included Documents */}
+                      {pkg.includedDocuments && pkg.includedDocuments.length > 0 && (
+                        <div className="pt-6 space-y-3">
+                          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                            Included Documents:
+                          </p>
+                          <ul className="space-y-2 text-sm text-slate-700">
+                            {pkg.includedDocuments.map((doc, i) => (
+                              <li key={i} className="flex items-center gap-3">
+                                <FileText className="w-4 h-4 text-primary shrink-0" />
+                                <span className="font-medium">{doc}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Included Services */}
+                      {pkg.includedServices && pkg.includedServices.length > 0 && (
+                        <div className="pt-6 space-y-3">
+                          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                            Included Services:
+                          </p>
+                          <ul className="space-y-2 text-sm text-slate-700">
+                            {pkg.includedServices.map((srv, i) => (
+                              <li key={i} className="flex items-center gap-3">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <span className="font-medium">{srv}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-8">
+                      <Link
+                        href={`/book?packageId=${pkg._id}`}
+                        className={`w-full inline-flex items-center justify-center gap-2 py-4 px-6 font-bold rounded-2xl transition-all ${
+                          pkg.isPopular
+                            ? 'text-white bg-primary hover:bg-blue-600 shadow-lg shadow-primary/25'
+                            : 'text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-200'
+                        }`}
+                      >
+                        <span>Reserve Your Slot</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         </section>
       </main>

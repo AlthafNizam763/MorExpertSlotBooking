@@ -33,6 +33,8 @@ export interface IBooking {
   slot: string; // e.g. "09:00 AM", "11:00 AM", "03:00 PM"
   status: BookingStatus;
   price?: number | null;
+  packageName?: string;
+  packagePrice?: number | null;
   remarks?: string;
   privateNotes?: string;
   publicNotes?: string;
@@ -47,10 +49,28 @@ export interface IBooking {
 export interface ISlot {
   _id?: string;
   date: string; // YYYY-MM-DD
-  time: string; // e.g. "09:00 AM"
+  time: string; // e.g. "09:00 AM" (used internally)
+  displayName?: string; // e.g. "Slot 1"
   capacity: number;
   booked: number;
+  remaining?: number;
   isAvailable: boolean;
+  statusColor?: 'green' | 'yellow' | 'red';
+  statusText?: string;
+}
+
+export interface IPackage {
+  _id?: string;
+  name: string;
+  price: number;
+  description: string;
+  includedDocuments: string[];
+  includedServices: string[];
+  gradientTheme?: string;
+  isPopular?: boolean;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ISettings {
