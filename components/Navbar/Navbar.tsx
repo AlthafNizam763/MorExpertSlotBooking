@@ -63,7 +63,7 @@ export const Navbar: React.FC = () => {
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 hover:text-primary transition-colors border border-slate-200 hover:border-primary/40 rounded-xl bg-white/50"
             >
               <ShieldCheck className="w-4 h-4 text-primary" />
-              <span>Admin Login</span>
+              <span>Login</span>
             </Link>
 
             <Link

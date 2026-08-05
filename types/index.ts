@@ -57,6 +57,11 @@ export interface ISlot {
   isAvailable: boolean;
   statusColor?: 'green' | 'yellow' | 'red';
   statusText?: string;
+  bookedInfo?: {
+    name: string;
+    packageName: string;
+    price: number;
+  } | null;
 }
 
 export interface IPackage {

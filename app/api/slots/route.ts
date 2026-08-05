@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     let bookedCountsBySlot: Record<string, number> = {};
 
     if (date) {
-      // Get booked count for each slot on this date
+      // Get booked count and details for each slot on this date
       let existingBookings: any[] = [];
       if (conn) {
         try {
@@ -48,10 +48,11 @@ export async function GET(req: Request) {
         dbSlots = fallbackStore.slots.filter((s) => s.date === date);
       }
 
-      // Merge defaults with DB overrides and compute status colors & remaining count
+      // Merge defaults with DB overrides and compute status colors, remaining count, and booked info
       const resultSlots = DEFAULT_TIMINGS.map((time, index) => {
+        const displayName = `Slot ${index + 1}`;
         const custom = dbSlots.find((s) => s.time === time);
-        const booked = bookedCountsBySlot[time] || 0;
+        const booked = bookedCountsBySlot[time] || bookedCountsBySlot[displayName] || 0;
         const capacity = custom?.capacity !== undefined ? custom.capacity : 1;
         const isEnabledInDb = custom ? custom.isAvailable : true;
         const remaining = Math.max(0, capacity - booked);
@@ -72,19 +73,31 @@ export async function GET(req: Request) {
           statusText = `Available (${remaining} Slots Left)`;
         }
 
-        const displayName = `Slot ${index + 1}`;
+        // Find candidate booking details if booked
+        const slotBooking = existingBookings.find(
+          (b) => b.slot === time || b.slot === displayName
+        );
+
+        const bookedInfo = slotBooking
+          ? {
+              name: slotBooking.name,
+              packageName: slotBooking.packageName || 'Standard Review',
+              price: slotBooking.price || slotBooking.packagePrice || 500,
+            }
+          : null;
 
         return {
           _id: custom?._id ? custom._id.toString() : `${date}-${time.replace(/[^a-zA-Z0-9]/g, '')}`,
           date,
-          time, // internal time value
-          displayName, // user-facing slot label e.g. "Slot 1"
+          time, // internal time value e.g. 09:00 AM
+          displayName, // user-facing label e.g. Slot 1
           capacity,
           booked,
           remaining,
           isAvailable: slotBookable,
           statusColor,
           statusText,
+          bookedInfo,
         };
       });
 

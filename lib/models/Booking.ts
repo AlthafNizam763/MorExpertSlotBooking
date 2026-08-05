@@ -38,9 +38,9 @@ const BookingSchema: Schema = new Schema(
   {
     bookingId: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true },
-    email: { type: String, required: true },
+    email: { type: String, default: '' },
     phone: { type: String, required: true, index: true },
-    resume: { type: String, required: true },
+    resume: { type: String, default: '' },
     notes: { type: String, default: '' },
     date: { type: String, required: true, index: true },
     slot: { type: String, required: true },

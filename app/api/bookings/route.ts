@@ -5,7 +5,6 @@ import { existsSync, mkdirSync } from 'fs';
 import connectToDatabase from '@/lib/mongodb';
 import Booking from '@/lib/models/Booking';
 import Slot from '@/lib/models/Slot';
-import OtpVerification from '@/lib/models/OtpVerification';
 import { generateBookingId } from '@/lib/utils';
 import { fallbackStore } from '@/lib/fallbackStore';
 import { IBooking } from '@/types';
@@ -19,71 +18,27 @@ if (!existsSync(uploadsDir)) {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const search = searchParams.get('search') || '';
-    const status = searchParams.get('status') || '';
-    const date = searchParams.get('date') || '';
-    const lookup = searchParams.get('lookup') || '';
+    const date = searchParams.get('date');
+    const phone = searchParams.get('phone');
+    const bookingId = searchParams.get('bookingId');
 
     const conn = await connectToDatabase();
+    let query: any = {};
 
+    if (date) query.date = date;
+    if (phone) query.phone = phone;
+    if (bookingId) query.bookingId = bookingId;
+
+    let list: IBooking[] = [];
     if (conn) {
-      try {
-        const query: any = {};
-
-        if (lookup) {
-          query.$or = [
-            { bookingId: { $regex: lookup, $options: 'i' } },
-            { phone: { $regex: lookup, $options: 'i' } },
-            { email: { $regex: lookup, $options: 'i' } },
-          ];
-        } else {
-          if (status) query.status = status;
-          if (date) query.date = date;
-          if (search) {
-            query.$or = [
-              { bookingId: { $regex: search, $options: 'i' } },
-              { name: { $regex: search, $options: 'i' } },
-              { email: { $regex: search, $options: 'i' } },
-              { phone: { $regex: search, $options: 'i' } },
-            ];
-          }
-        }
-
-        const bookings = await Booking.find(query).sort({ createdAt: -1 }).lean();
-        return NextResponse.json({ success: true, data: bookings });
-      } catch (err) {
-        console.warn('DB Query failed, using fallback store:', err);
-      }
-    }
-
-    // Fallback store filter
-    let list = [...fallbackStore.bookings];
-
-    if (lookup) {
-      const trimmed = lookup.trim().toLowerCase();
-      list = list.filter(
-        (b) =>
-          b.bookingId.toLowerCase().includes(trimmed) ||
-          b.phone.toLowerCase().includes(trimmed) ||
-          b.email.toLowerCase().includes(trimmed)
-      );
+      list = (await Booking.find(query).sort({ createdAt: -1 }).lean()) as unknown as IBooking[];
     } else {
-      if (status) {
-        list = list.filter((b) => b.status === status);
-      }
-      if (date) {
-        list = list.filter((b) => b.date === date);
-      }
-      if (search) {
-        const s = search.toLowerCase();
-        list = list.filter(
-          (b) =>
-            b.bookingId.toLowerCase().includes(s) ||
-            b.name.toLowerCase().includes(s) ||
-            b.email.toLowerCase().includes(s) ||
-            b.phone.toLowerCase().includes(s)
-        );
-      }
+      list = fallbackStore.bookings.filter((b) => {
+        if (date && b.date !== date) return false;
+        if (phone && b.phone !== phone) return false;
+        if (bookingId && b.bookingId !== bookingId) return false;
+        return true;
+      });
     }
 
     return NextResponse.json({ success: true, data: list });
@@ -94,69 +49,94 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const formData = await req.formData();
+    let name = '';
+    let email = '';
+    let phone = '';
+    let date = '';
+    let slot = '';
+    let notes = '';
+    let packageName = 'Standard Package';
+    let packagePrice: number | null = 500;
+    let resumeUrl = '';
 
-    const name = formData.get('name') as string;
-    const email = formData.get('email') as string;
-    const phone = formData.get('phone') as string;
-    const date = formData.get('date') as string;
-    const slot = formData.get('slot') as string;
-    const notes = (formData.get('notes') as string) || '';
-    const packageName = (formData.get('packageName') as string) || '';
-    const packagePriceStr = formData.get('packagePrice') as string;
-    const packagePrice = packagePriceStr ? Number(packagePriceStr) : null;
-    const resumeFile = formData.get('resume') as File | null;
+    const contentType = req.headers.get('content-type') || '';
 
-    if (!name || !email || !phone || !date || !slot) {
+    if (contentType.includes('application/json')) {
+      const json = await req.json();
+      name = json.name || '';
+      email = json.email || '';
+      phone = json.phone || '';
+      date = json.date || '';
+      slot = json.slot || '';
+      notes = json.notes || '';
+      packageName = json.packageName || 'Standard Package';
+      packagePrice = json.packagePrice !== undefined ? Number(json.packagePrice) : 500;
+    } else {
+      const formData = await req.formData();
+      name = (formData.get('name') as string) || '';
+      email = (formData.get('email') as string) || '';
+      phone = (formData.get('phone') as string) || '';
+      date = (formData.get('date') as string) || '';
+      slot = (formData.get('slot') as string) || '';
+      notes = (formData.get('notes') as string) || '';
+      packageName = (formData.get('packageName') as string) || 'Standard Package';
+      const pStr = formData.get('packagePrice') as string;
+      packagePrice = pStr ? Number(pStr) : 500;
+
+      const resumeFile = formData.get('resume') as File | null;
+      if (resumeFile && typeof resumeFile === 'object' && resumeFile.name) {
+        if (resumeFile.type === 'application/pdf' || resumeFile.name.endsWith('.pdf')) {
+          if (resumeFile.size <= 10 * 1024 * 1024) {
+            const bytes = await resumeFile.arrayBuffer();
+            const buffer = Buffer.from(bytes);
+            const sanitizedFileName = `${Date.now()}_${resumeFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+            const filePath = path.join(uploadsDir, sanitizedFileName);
+            await fs.writeFile(filePath, buffer);
+            resumeUrl = `/uploads/${sanitizedFileName}`;
+          }
+        }
+      }
+    }
+
+    if (!name || !phone || !date || !slot) {
       return NextResponse.json(
-        { error: 'All required fields (Name, Email, Phone, Date, Slot) must be provided.' },
+        { error: 'Required fields (Full Name, Phone Number, Date, Slot) must be provided.' },
         { status: 400 }
       );
     }
 
     const conn = await connectToDatabase();
-    if (conn) {
-      const normalizedEmail = email.trim().toLowerCase();
-      const normalizedPhone = phone.trim();
 
-      const otpRecord = await OtpVerification.findOne({
-        email: normalizedEmail,
-        phone: normalizedPhone,
+    // Prevent Duplicate Bookings for the same slot on the same date
+    if (conn) {
+      const existingBooking = await Booking.findOne({
+        date,
+        slot,
+        status: { $ne: 'Cancelled' },
       });
 
-      if (!otpRecord || otpRecord.emailVerified !== 1 || otpRecord.phoneVerified !== 1) {
+      if (existingBooking) {
         return NextResponse.json(
           {
-            error:
-              'Booking rejected: Both Email and Phone Number must be verified via 6-digit OTP before slot reservation.',
-            emailVerified: otpRecord?.emailVerified || 0,
-            phoneVerified: otpRecord?.phoneVerified || 0,
+            error: `Slot "${slot}" on ${date} is already booked by ${existingBooking.name}. Please select an available slot.`,
+            bookedBy: existingBooking.name,
           },
           { status: 400 }
         );
       }
-    }
-
-    let resumeUrl = '';
-
-    // File validation: PDF check & 10MB limit (if uploaded)
-    if (resumeFile && typeof resumeFile === 'object' && resumeFile.name) {
-      if (resumeFile.type !== 'application/pdf' && !resumeFile.name.endsWith('.pdf')) {
-        return NextResponse.json({ error: 'Only PDF documents are supported for resume uploads.' }, { status: 400 });
+    } else {
+      const existingFallback = fallbackStore.bookings.find(
+        (b) => b.date === date && b.slot === slot && b.status !== 'Cancelled'
+      );
+      if (existingFallback) {
+        return NextResponse.json(
+          {
+            error: `Slot "${slot}" on ${date} is already booked by ${existingFallback.name}. Please select an available slot.`,
+            bookedBy: existingFallback.name,
+          },
+          { status: 400 }
+        );
       }
-
-      if (resumeFile.size > 10 * 1024 * 1024) {
-        return NextResponse.json({ error: 'Resume file size cannot exceed 10MB.' }, { status: 400 });
-      }
-
-      // Save PDF file to public/uploads
-      const bytes = await resumeFile.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const sanitizedFileName = `${Date.now()}_${resumeFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-      const filePath = path.join(uploadsDir, sanitizedFileName);
-      await fs.writeFile(filePath, buffer);
-
-      resumeUrl = `/uploads/${sanitizedFileName}`;
     }
 
     const bookingId = generateBookingId();
@@ -164,7 +144,7 @@ export async function POST(req: Request) {
     const newBookingData: IBooking = {
       bookingId,
       name: name.trim(),
-      email: email.trim().toLowerCase(),
+      email: email ? email.trim().toLowerCase() : 'noemail@morexpert.com',
       phone: phone.trim(),
       resume: resumeUrl,
       notes: notes.trim(),
