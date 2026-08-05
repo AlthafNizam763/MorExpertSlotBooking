@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Clock,
 } from 'lucide-react';
+import { MorExpertLogo } from '@/components/Common/MorExpertLogo';
 
 export const AdminSidebar: React.FC = () => {
   const pathname = usePathname();
@@ -40,13 +41,11 @@ export const AdminSidebar: React.FC = () => {
     <aside className="w-64 bg-slate-900 text-slate-300 min-h-screen p-6 flex flex-col justify-between border-r border-slate-800 shrink-0">
       <div className="space-y-8">
         {/* Logo */}
-        <Link href="/admin/dashboard" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white shadow-lg">
-            <Sparkles className="w-5 h-5" />
-          </div>
+        <Link href="/admin/dashboard" className="flex items-center gap-3 group">
+          <MorExpertLogo size={40} />
           <div>
             <span className="text-xl font-bold text-white tracking-tight">MorExpert</span>
-            <span className="block text-[10px] uppercase font-bold tracking-widest text-accent">
+            <span className="block text-[10px] uppercase font-bold tracking-widest text-sky-400">
               Admin Portal
             </span>
           </div>

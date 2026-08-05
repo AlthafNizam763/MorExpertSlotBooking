@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Sparkles, Calendar, Search, ShieldCheck, Menu, X, ArrowRight } from 'lucide-react';
 
+import { MorExpertLogo } from '@/components/Common/MorExpertLogo';
+
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -23,14 +25,12 @@ export const Navbar: React.FC = () => {
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white shadow-lg shadow-primary/20 group-hover:scale-105 transition-transform duration-300">
-              <Sparkles className="w-5 h-5 animate-pulse" />
-            </div>
+            <MorExpertLogo size={42} />
             <div>
-              <span className="text-xl font-bold bg-gradient-to-r from-secondary via-primary to-accent bg-clip-text text-transparent tracking-tight">
+              <span className="text-xl font-bold bg-gradient-to-r from-slate-900 via-primary to-blue-700 bg-clip-text text-transparent tracking-tight">
                 MorExpert
               </span>
-              <span className="block text-[10px] uppercase font-bold tracking-widest text-primary/80">
+              <span className="block text-[10px] uppercase font-bold tracking-widest text-primary">
                 Slot Booking
               </span>
             </div>

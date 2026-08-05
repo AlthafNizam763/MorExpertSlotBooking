@@ -4,6 +4,8 @@ import React from 'react';
 import Link from 'next/link';
 import { Sparkles, Calendar, ShieldCheck, Mail, Phone, MapPin, ExternalLink } from 'lucide-react';
 
+import { MorExpertLogo } from '@/components/Common/MorExpertLogo';
+
 export const Footer: React.FC = () => {
   return (
     <footer className="bg-secondary text-slate-300 pt-16 pb-12 border-t border-slate-800 relative overflow-hidden">
@@ -16,9 +18,7 @@ export const Footer: React.FC = () => {
           {/* Brand Col */}
           <div className="md:col-span-1 space-y-4">
             <Link href="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white shadow-lg">
-                <Sparkles className="w-5 h-5" />
-              </div>
+              <MorExpertLogo size={40} />
               <span className="text-xl font-bold text-white tracking-tight">MorExpert</span>
             </Link>
             <p className="text-sm text-slate-400 leading-relaxed">
