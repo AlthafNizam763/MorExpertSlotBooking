@@ -21,7 +21,7 @@ export const MorExpertLogo: React.FC<LogoProps> = ({
       height={size}
       viewBox="0 0 120 120"
       fill="none"
-      xmlns="logo2.svg"
+      xmlns="/logo2.svg"
       className={`shrink-0 transition-transform duration-300 hover:scale-105 ${className}`}
     >
       <defs>
