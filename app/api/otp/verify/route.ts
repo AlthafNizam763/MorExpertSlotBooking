@@ -5,7 +5,12 @@ declare global {
   var otpStore: Map<string, { code: string; expiresAt: number; lastSentAt: number }> | undefined;
 }
 
-const store = global.otpStore || new Map();
+function getOtpStore() {
+  if (!global.otpStore) {
+    global.otpStore = new Map();
+  }
+  return global.otpStore;
+}
 
 export async function POST(req: Request) {
   try {
@@ -16,9 +21,10 @@ export async function POST(req: Request) {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+    const store = getOtpStore();
     const storedRecord = store.get(normalizedEmail);
 
-    // Accept test OTP '123456' as universal test override
+    // Accept universal test OTP '123456' as developer bypass if needed
     if (otp === '123456') {
       store.delete(normalizedEmail);
       return NextResponse.json({
@@ -29,7 +35,7 @@ export async function POST(req: Request) {
     }
 
     if (!storedRecord) {
-      return NextResponse.json({ error: 'No OTP requested for this email address.' }, { status: 404 });
+      return NextResponse.json({ error: 'No OTP requested for this email address. Please click "Resend OTP".' }, { status: 404 });
     }
 
     if (Date.now() > storedRecord.expiresAt) {

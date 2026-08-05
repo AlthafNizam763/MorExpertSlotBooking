@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 
-// Global memory cache for storing OTPs during runtime
 declare global {
   // eslint-disable-next-line no-var
   var otpStore: Map<string, { code: string; expiresAt: number; lastSentAt: number }> | undefined;
 }
 
-if (!global.otpStore) {
-  global.otpStore = new Map();
+function getOtpStore() {
+  if (!global.otpStore) {
+    global.otpStore = new Map();
+  }
+  return global.otpStore;
 }
-
-const store = global.otpStore;
 
 export async function POST(req: Request) {
   try {
@@ -21,6 +21,7 @@ export async function POST(req: Request) {
 
     const normalizedEmail = email.toLowerCase().trim();
     const now = Date.now();
+    const store = getOtpStore();
     const existing = store.get(normalizedEmail);
 
     // 30 second resend throttle check
