@@ -296,10 +296,10 @@ export default function AdminBookingsPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-white font-sans">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-white font-sans">
       <AdminSidebar />
 
-      <main className="flex-grow p-6 sm:p-10 space-y-8 overflow-x-hidden">
+      <main className="flex-grow p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-8 overflow-x-hidden w-full">
         {/* HEADER & FILTERS */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
           <div>
@@ -510,8 +510,8 @@ export default function AdminBookingsPage() {
 
       {/* EDIT / APPROVE / RESCHEDULE MODAL */}
       {selectedBooking && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 text-white animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl space-y-5 sm:space-y-6 text-white animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
                 <span className="text-xs uppercase font-bold text-slate-400">Booking Management</span>
@@ -715,8 +715,8 @@ export default function AdminBookingsPage() {
 
       {/* ADMIN SLOT BOOKING MODAL */}
       {showAdminBookingModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 text-white animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl space-y-5 sm:space-y-6 text-white animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-purple-400" />

@@ -11,10 +11,10 @@ const DragDropCalendar = dynamic(
 
 export default function AdminCalendarPage() {
   return (
-    <div className="flex min-h-screen bg-slate-950 text-white font-sans">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-white font-sans">
       <AdminSidebar />
 
-      <main className="flex-grow p-6 sm:p-10 space-y-6 overflow-x-hidden">
+      <main className="flex-grow p-4 sm:p-6 lg:p-10 space-y-6 overflow-x-hidden w-full">
         <div className="pb-4 border-b border-slate-800">
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
             Calendar & Drag-and-Drop Slot Management

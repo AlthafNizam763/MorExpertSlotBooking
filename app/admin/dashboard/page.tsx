@@ -59,10 +59,10 @@ export default function AdminDashboardPage() {
   }, [router]);
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-white font-sans">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-white font-sans">
       <AdminSidebar />
 
-      <main className="flex-grow p-6 sm:p-10 space-y-8 overflow-x-hidden">
+      <main className="flex-grow p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-8 overflow-x-hidden w-full">
         {/* TOP BAR */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
           <div>

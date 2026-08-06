@@ -66,10 +66,6 @@ function CalendlyCalendarContent() {
   // All Bookings for calendar summary & fully-booked calculation
   const [allBookings, setAllBookings] = useState<IBooking[]>([]);
 
-  // Hover Tooltip / Popover state
-  const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
-  const [hoveredPos, setHoveredPos] = useState<{ x: number; y: number } | null>(null);
-
   const dateKey = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
 
   // Fetch all active bookings for calendar view
@@ -512,7 +508,7 @@ Thank you.`;
             </div>
 
             {/* Month Days Grid */}
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {days.map((day, idx) => {
                 const isPast = isBefore(startOfDay(day), startOfDay(new Date()));
                 const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
@@ -533,13 +529,7 @@ Thank you.`;
                         setSelectedDate(day);
                         setSelectedSlot(null);
                       }}
-                      onMouseEnter={() => {
-                        if (isCurrentMonth) setHoveredDate(day);
-                      }}
-                      onMouseLeave={() => {
-                        setHoveredDate(null);
-                      }}
-                      className={`w-full min-h-[96px] sm:min-h-[105px] rounded-2xl p-2 flex flex-col justify-between transition-all border text-left ${
+                      className={`w-full min-h-[74px] sm:min-h-[105px] rounded-xl sm:rounded-2xl p-1 sm:p-2 flex flex-col justify-between transition-all border text-left overflow-hidden ${
                         !isCurrentMonth
                           ? 'opacity-20 cursor-not-allowed border-transparent bg-transparent'
                           : isPast
@@ -566,7 +556,7 @@ Thank you.`;
 
                         {!isPast && isCurrentMonth && (
                           <span
-                            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                            className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0 ${
                               isSelected
                                 ? 'bg-white'
                                 : isFullyBooked
@@ -575,42 +565,59 @@ Thank you.`;
                                 ? 'bg-amber-500'
                                 : 'bg-emerald-500'
                             }`}
-                            title={
-                              isFullyBooked
-                                ? 'Fully Booked'
-                                : isLimited
-                                ? 'Limited Availability'
-                                : 'Available'
-                            }
                           />
                         )}
                       </div>
 
                       {/* Fully Booked Badge or Available Status */}
                       {isCurrentMonth && !isPast && (
-                        <div className="mt-0.5 mb-1">
+                        <div className="my-0.5">
                           {isFullyBooked ? (
-                            <span
-                              className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider block text-center ${
-                                isSelected
-                                  ? 'bg-white/20 text-white'
-                                  : 'bg-rose-600 text-white shadow-xs'
-                              }`}
-                            >
-                              Fully Booked
-                            </span>
+                            <>
+                              <span
+                                className={`hidden sm:block text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider text-center ${
+                                  isSelected
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-rose-600 text-white shadow-xs'
+                                }`}
+                              >
+                                Fully Booked
+                              </span>
+                              <span
+                                className={`sm:hidden text-[7.5px] font-black px-1 py-0.2 rounded uppercase text-center block ${
+                                  isSelected
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-rose-600 text-white'
+                                }`}
+                              >
+                                FULL
+                              </span>
+                            </>
                           ) : (
-                            <span
-                              className={`text-[9px] font-bold ${
-                                isSelected
-                                  ? 'text-blue-100'
-                                  : isLimited
-                                  ? 'text-amber-700'
-                                  : 'text-slate-400'
-                              }`}
-                            >
-                              {3 - dayBookings.length} {3 - dayBookings.length === 1 ? 'Slot Left' : 'Slots Left'}
-                            </span>
+                            <>
+                              <span
+                                className={`hidden sm:inline text-[9px] font-bold ${
+                                  isSelected
+                                    ? 'text-blue-100'
+                                    : isLimited
+                                    ? 'text-amber-700'
+                                    : 'text-slate-400'
+                                }`}
+                              >
+                                {3 - dayBookings.length} {3 - dayBookings.length === 1 ? 'Slot Left' : 'Slots Left'}
+                              </span>
+                              <span
+                                className={`sm:hidden text-[7.5px] font-extrabold ${
+                                  isSelected
+                                    ? 'text-blue-100'
+                                    : isLimited
+                                    ? 'text-amber-700'
+                                    : 'text-slate-400'
+                                }`}
+                              >
+                                {3 - dayBookings.length} left
+                              </span>
+                            </>
                           )}
                         </div>
                       )}
@@ -627,7 +634,7 @@ Thank you.`;
                             return (
                               <div
                                 key={b.bookingId || bIdx}
-                                className={`text-[10px] sm:text-[11px] font-extrabold leading-tight truncate px-1 py-0.5 rounded flex items-center justify-between ${
+                                className={`text-[7.5px] sm:text-[10px] font-extrabold leading-tight truncate px-0.5 sm:px-1 py-0.2 sm:py-0.5 rounded flex items-center justify-between overflow-hidden ${
                                   isSelected
                                     ? 'bg-white/20 text-white'
                                     : isFullyBooked
@@ -636,7 +643,7 @@ Thank you.`;
                                 }`}
                               >
                                 <span>{formatted3}</span>
-                                <span>: {priceStr}</span>
+                                <span className="ml-0.5">:{priceStr}</span>
                               </div>
                             );
                           })}
@@ -648,75 +655,6 @@ Thank you.`;
               })}
             </div>
           </div>
-
-          {/* HOVER TOOLTIP / POPOVER OVERLAY */}
-          {hoveredDate && (
-            <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-slate-900 text-white rounded-3xl p-5 shadow-2xl border border-slate-700 animate-in fade-in slide-in-from-bottom-4 duration-200 pointer-events-none">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <CalendarIcon className="w-4 h-4 text-primary" />
-                  <h4 className="font-extrabold text-sm text-white">
-                    {format(hoveredDate, 'MMMM d, yyyy')}
-                  </h4>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-800 text-slate-300 rounded-full border border-slate-700">
-                  Hover Details
-                </span>
-              </div>
-
-              <div className="space-y-3 text-xs">
-                {['Slot 1', 'Slot 2', 'Slot 3'].map((slotNumName, sIdx) => {
-                  const legacyTime = sIdx === 0 ? '09:00 AM' : sIdx === 1 ? '11:00 AM' : '03:00 PM';
-                  const hStr = format(hoveredDate, 'yyyy-MM-dd');
-                  const b = allBookings.find(
-                    (bk) =>
-                      bk.date === hStr &&
-                      bk.status !== 'Cancelled' &&
-                      (bk.slot === slotNumName || bk.slot === legacyTime)
-                  );
-
-                  if (b) {
-                    return (
-                      <div
-                        key={slotNumName}
-                        className="p-3 bg-slate-800/90 rounded-2xl border border-slate-700 space-y-1"
-                      >
-                        <div className="flex items-center justify-between border-b border-slate-700/60 pb-1">
-                          <span className="font-black text-sky-400 uppercase tracking-wider text-[11px]">
-                            {slotNumName}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            {b.status || 'Booked'}
-                          </span>
-                        </div>
-                        <p className="font-extrabold text-white text-sm pt-0.5">{b.name}</p>
-                        <div className="flex items-center justify-between text-slate-300 text-[11px]">
-                          <span className="font-medium text-slate-400">
-                            {b.packageName || 'Standard Package'}
-                          </span>
-                          <span className="font-black text-emerald-400">
-                            {formatPrice(b.price || b.packagePrice || 500)}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={slotNumName}
-                      className="p-2.5 bg-slate-800/40 rounded-xl border border-slate-800/60 flex items-center justify-between text-slate-400"
-                    >
-                      <span className="font-bold text-slate-400">{slotNumName}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20">
-                        Available
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* SECTION 3: SELECT SLOT (Booked cards display Booked by, Package, Price) */}
           {selectedDate && (

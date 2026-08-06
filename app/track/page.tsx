@@ -111,7 +111,7 @@ function TrackContent() {
         </p>
 
         {/* Search Input Box */}
-        <form onSubmit={handleSearch} className="max-w-xl mx-auto pt-4 flex gap-2">
+        <form onSubmit={handleSearch} className="max-w-xl mx-auto pt-4 flex flex-col sm:flex-row gap-2">
           <div className="relative flex-grow">
             <Search className="w-5 h-5 text-slate-400 absolute left-4 top-3.5" />
             <input

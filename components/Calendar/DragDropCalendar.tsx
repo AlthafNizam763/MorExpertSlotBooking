@@ -110,7 +110,7 @@ export const DragDropCalendar: React.FC = () => {
   };
 
   return (
-    <div className="glass-card-dark p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6 font-sans">
+    <div className="glass-card-dark p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-800 space-y-6 font-sans w-full overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
@@ -140,8 +140,8 @@ export const DragDropCalendar: React.FC = () => {
       </div>
 
       {/* Agenda Grid */}
-      <div className="overflow-x-auto">
-        <div className="min-w-[900px]">
+      <div className="overflow-x-auto pb-2">
+        <div className="min-w-[700px] sm:min-w-[900px]">
           {/* Header Row */}
           <div className="grid grid-cols-8 gap-2 pb-2 text-center text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
             <div className="py-2 text-left pl-2">Slot</div>

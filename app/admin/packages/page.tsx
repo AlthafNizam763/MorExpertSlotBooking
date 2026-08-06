@@ -186,10 +186,10 @@ export default function AdminPackagesPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-white font-sans">
+    <div className="flex flex-col lg:flex-row min-h-screen bg-slate-950 text-white font-sans">
       <AdminSidebar />
 
-      <main className="flex-grow p-6 sm:p-10 space-y-8">
+      <main className="flex-grow p-4 sm:p-6 lg:p-10 space-y-6 sm:space-y-8 overflow-x-hidden w-full">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
           <div>
@@ -219,29 +219,13 @@ export default function AdminPackagesPage() {
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary mb-3" />
             <p className="text-sm font-medium">Loading packages from MongoDB...</p>
           </div>
-        ) : packages.length === 0 ? (
-          <div className="glass-card-dark p-12 text-center rounded-3xl border border-slate-800 space-y-4">
-            <Package className="w-12 h-12 text-slate-500 mx-auto" />
-            <h3 className="text-lg font-bold text-white">No Packages Available</h3>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              Create your first package to display dynamic pricing cards on the home page and booking page.
-            </p>
-            <button
-              onClick={handleOpenAdd}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-primary rounded-xl"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create Package</span>
-            </button>
-          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {packages.map((pkg) => (
               <div
-                key={pkg._id}
-                className="glass-card-dark rounded-3xl border border-slate-800 p-6 flex flex-col justify-between space-y-6 relative overflow-hidden group hover:border-slate-700 transition-all"
+                key={pkg._id || pkg.name}
+                className="glass-card-dark rounded-3xl p-6 border border-slate-800 flex flex-col justify-between space-y-6 relative group hover:border-slate-700 transition-all"
               >
-                {/* Visual Header / Badge */}
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <span
@@ -262,61 +246,63 @@ export default function AdminPackagesPage() {
                     )}
                   </div>
 
-                  <h3 className="text-xl font-extrabold text-white mb-2">{pkg.name}</h3>
-                  <p className="text-xs text-slate-400 leading-relaxed mb-4">{pkg.description}</p>
+                  <h3 className="text-xl font-extrabold text-white">{pkg.name}</h3>
+                  <p className="text-2xl font-black text-sky-400 mt-1">
+                    {formatPrice(pkg.price)}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                    {pkg.description}
+                  </p>
 
-                  <div className="flex items-baseline gap-1.5 pb-4 border-b border-slate-800">
-                    <span className="text-3xl font-black text-sky-400">{formatPrice(pkg.price)}</span>
-                    <span className="text-xs text-slate-500">/ session</span>
-                  </div>
-
-                  {/* Included Documents */}
-                  <div className="pt-4 space-y-2">
-                    <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                      Included Documents:
-                    </p>
-                    <ul className="space-y-1.5 text-xs text-slate-300">
-                      {pkg.includedDocuments?.map((doc, idx) => (
-                        <li key={idx} className="flex items-center gap-2">
-                          <FileText className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                          <span>{doc}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {/* Included Docs */}
+                  {pkg.includedDocuments && pkg.includedDocuments.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-slate-800 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Included Documents:
+                      </span>
+                      <ul className="space-y-1 text-xs text-slate-300">
+                        {pkg.includedDocuments.map((doc, i) => (
+                          <li key={i} className="flex items-center gap-2">
+                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span>{doc}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* Included Services */}
-                  <div className="pt-4 space-y-2">
-                    <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                      Included Services:
-                    </p>
-                    <ul className="space-y-1.5 text-xs text-slate-300">
-                      {pkg.includedServices?.map((srv, idx) => (
-                        <li key={idx} className="flex items-center gap-2">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span>{srv}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  {pkg.includedServices && pkg.includedServices.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Included Services:
+                      </span>
+                      <ul className="space-y-1 text-xs text-slate-300">
+                        {pkg.includedServices.map((srv, i) => (
+                          <li key={i} className="flex items-center gap-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                            <span>{srv}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
-                {/* Actions */}
-                <div className="pt-4 border-t border-slate-800/80 flex items-center gap-2">
+                <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-2">
                   <button
                     onClick={() => handleOpenEdit(pkg)}
-                    className="flex-1 py-2.5 px-3 text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition-all flex items-center justify-center gap-2"
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5 text-xs font-semibold"
                   >
                     <Edit2 className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Edit Package</span>
+                    <span>Edit</span>
                   </button>
-
                   <button
                     onClick={() => handleDelete(pkg)}
-                    className="p-2.5 text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl transition-all"
-                    title="Delete Package"
+                    className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl border border-rose-500/20 transition-colors flex items-center gap-1.5 text-xs font-semibold"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>
@@ -324,10 +310,10 @@ export default function AdminPackagesPage() {
           </div>
         )}
 
-        {/* CREATE / EDIT MODAL */}
+        {/* CREATE / EDIT PACKAGE MODAL */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 font-sans overflow-y-auto">
-            <div className="bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-xl w-full border border-slate-800 shadow-2xl space-y-6 text-white my-8">
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+            <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-8 max-w-xl w-full max-h-[90vh] overflow-y-auto border border-slate-800 shadow-2xl space-y-6 text-white my-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-4">
                 <h3 className="text-lg font-bold flex items-center gap-2">
                   <Package className="w-5 h-5 text-sky-400" />
