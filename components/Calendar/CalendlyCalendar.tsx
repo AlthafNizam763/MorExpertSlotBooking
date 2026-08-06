@@ -438,7 +438,7 @@ Thank you.`;
                 <Loader2 className="w-5 h-5 animate-spin mx-auto text-primary" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {packages.map((pkg) => {
                   const isSelected = selectedPackage?._id === pkg._id;
                   return (
@@ -446,21 +446,38 @@ Thank you.`;
                       key={pkg._id}
                       type="button"
                       onClick={() => setSelectedPackage(pkg)}
-                      className={`p-4 rounded-2xl border text-left transition-all relative flex flex-col justify-between ${
+                      className={`p-5 sm:p-6 min-h-[125px] sm:min-h-[135px] rounded-2xl border text-left transition-all relative flex flex-col justify-between group hover:-translate-y-0.5 hover:shadow-md ${
                         isSelected
                           ? 'bg-slate-900 text-white border-primary shadow-xl ring-2 ring-primary/40'
                           : 'bg-white hover:border-slate-300 border-slate-200 text-slate-800 shadow-sm'
                       }`}
                     >
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-[10px] font-extrabold uppercase ${isSelected ? 'text-sky-400' : 'text-slate-500'}`}>
+                      <div className="w-full min-w-0">
+                        <div className="flex items-center justify-between mb-2 gap-2">
+                          <span
+                            className={`text-[10px] sm:text-xs font-extrabold uppercase tracking-wider ${
+                              isSelected ? 'text-sky-400' : 'text-slate-500'
+                            }`}
+                          >
                             {pkg.isPopular ? 'Popular' : 'Package'}
                           </span>
-                          {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                          {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
                         </div>
-                        <p className="text-sm font-extrabold truncate">{pkg.name}</p>
-                        <p className={`text-xs mt-1 font-bold ${isSelected ? 'text-sky-300' : 'text-primary'}`}>
+                        <p
+                          className="text-base sm:text-lg font-extrabold truncate leading-snug"
+                          title={pkg.name}
+                        >
+                          {pkg.name}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between w-full min-w-0">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Price</span>
+                        <p
+                          className={`text-base sm:text-lg font-black shrink-0 whitespace-nowrap ${
+                            isSelected ? 'text-sky-300' : 'text-primary'
+                          }`}
+                        >
                           {formatPrice(pkg.price)}
                         </p>
                       </div>
@@ -642,8 +659,8 @@ Thank you.`;
                                     : 'bg-slate-200/80 text-slate-900 border border-slate-300/50'
                                 }`}
                               >
-                                <span>{formatted3}</span>
-                                <span className="ml-0.5">:{priceStr}</span>
+                                <span className="truncate">{formatted3}</span>
+                                <span className="ml-0.5 shrink-0 whitespace-nowrap">:{priceStr}</span>
                               </div>
                             );
                           })}
@@ -667,7 +684,7 @@ Thank you.`;
                 {slotsLoading && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {availableSlots.map((s, idx) => {
                   const isSelected = selectedSlot === s.time;
                   const isBooked = !s.isAvailable || Boolean(s.bookedInfo);
@@ -678,21 +695,23 @@ Thank you.`;
                     return (
                       <div
                         key={s.time}
-                        className="p-4 rounded-2xl border border-rose-200 bg-rose-50/90 text-left shadow-sm space-y-1.5 relative overflow-hidden"
+                        className="p-5 sm:p-6 min-h-[120px] rounded-2xl border border-rose-200 bg-rose-50/90 text-left shadow-sm space-y-2 relative overflow-hidden flex flex-col justify-between"
                       >
-                        <div className="flex items-center justify-between border-b border-rose-200 pb-1.5">
+                        <div className="flex items-center justify-between border-b border-rose-200 pb-2">
                           <span className="text-xs font-black text-rose-700 uppercase tracking-wider">
                             {displayName} (Booked)
                           </span>
-                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
                         </div>
-                        <p className="text-xs font-extrabold text-slate-900 truncate">
-                          Booked by: <span className="text-rose-800 font-bold">{s.bookedInfo.name}</span>
-                        </p>
-                        <p className="text-xs text-slate-700">
-                          Package: <span className="font-semibold">{s.bookedInfo.packageName}</span>
-                        </p>
-                        <p className="text-xs font-bold text-rose-700">
+                        <div className="space-y-1 text-xs min-w-0">
+                          <p className="font-extrabold text-slate-900 truncate" title={s.bookedInfo.name}>
+                            Booked by: <span className="text-rose-800 font-bold">{s.bookedInfo.name}</span>
+                          </p>
+                          <p className="text-slate-700 truncate" title={s.bookedInfo.packageName}>
+                            Package: <span className="font-semibold">{s.bookedInfo.packageName}</span>
+                          </p>
+                        </div>
+                        <p className="text-xs font-black text-rose-700 pt-1 border-t border-rose-200/60 shrink-0 whitespace-nowrap">
                           Price: {formatPrice(s.bookedInfo.price)}
                         </p>
                       </div>
@@ -703,11 +722,11 @@ Thank you.`;
                     return (
                       <div
                         key={s.time}
-                        className="p-4 rounded-2xl border border-rose-200 bg-rose-50/80 text-left shadow-sm opacity-70"
+                        className="p-5 sm:p-6 min-h-[110px] sm:min-h-[120px] rounded-2xl border border-rose-200 bg-rose-50/80 text-left shadow-sm opacity-70 flex flex-col justify-between"
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-extrabold text-rose-800">{displayName}</span>
-                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
                         </div>
                         <p className="text-xs font-bold text-rose-600 mt-2">Fully Booked</p>
                       </div>
@@ -719,7 +738,7 @@ Thank you.`;
                       key={s.time}
                       type="button"
                       onClick={() => setSelectedSlot(s.time)}
-                      className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 ${
+                      className={`p-5 sm:p-6 min-h-[110px] sm:min-h-[120px] rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group hover:-translate-y-0.5 ${
                         isSelected
                           ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 font-bold scale-[1.02]'
                           : 'bg-emerald-50/40 hover:border-emerald-400 border-emerald-200 text-slate-900 shadow-sm'

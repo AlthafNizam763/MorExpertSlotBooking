@@ -246,8 +246,10 @@ export default function AdminPackagesPage() {
                     )}
                   </div>
 
-                  <h3 className="text-xl font-extrabold text-white">{pkg.name}</h3>
-                  <p className="text-2xl font-black text-sky-400 mt-1">
+                  <h3 className="text-xl font-extrabold text-white truncate" title={pkg.name}>
+                    {pkg.name}
+                  </h3>
+                  <p className="text-2xl font-black text-sky-400 mt-1 shrink-0 whitespace-nowrap">
                     {formatPrice(pkg.price)}
                   </p>
                   <p className="text-xs text-slate-400 mt-2 leading-relaxed">
