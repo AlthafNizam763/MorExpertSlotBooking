@@ -1,6 +1,6 @@
 import React from 'react';
 import Image from 'next/image';
-import logoImg from '@/app/src/images/logo2.png';
+import logoImg from '@/app/src/images/logo.jpg';
 
 interface LogoProps {
   className?: string;
