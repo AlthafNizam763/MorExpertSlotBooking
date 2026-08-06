@@ -44,7 +44,6 @@ function CalendlyCalendarContent() {
   const toast = useToast();
   const searchParams = useSearchParams();
   const urlPackageId = searchParams.get('packageId');
-
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -64,7 +63,58 @@ function CalendlyCalendarContent() {
   const [submitting, setSubmitting] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState<IBooking | null>(null);
 
+  // All Bookings for calendar summary & fully-booked calculation
+  const [allBookings, setAllBookings] = useState<IBooking[]>([]);
+
+  // Hover Tooltip / Popover state
+  const [hoveredDate, setHoveredDate] = useState<Date | null>(null);
+  const [hoveredPos, setHoveredPos] = useState<{ x: number; y: number } | null>(null);
+
   const dateKey = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '';
+
+  // Fetch all active bookings for calendar view
+  const fetchAllBookings = async () => {
+    try {
+      const res = await fetch('/api/bookings');
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setAllBookings(json.data);
+      }
+    } catch (err) {
+      console.error('Error fetching month bookings for calendar:', err);
+    }
+  };
+
+  // Auto Refresh & event listener setup
+  useEffect(() => {
+    fetchAllBookings();
+
+    const interval = setInterval(() => {
+      fetchAllBookings();
+    }, 5000);
+
+    const handleUpdate = () => {
+      fetchAllBookings();
+      if (dateKey) {
+        fetch(`/api/slots?date=${dateKey}`)
+          .then((res) => res.json())
+          .then((json) => {
+            if (json.success) setAvailableSlots(json.data);
+          });
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('bookingUpdated', handleUpdate);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('bookingUpdated', handleUpdate);
+      }
+    };
+  }, [dateKey]);
 
   // Fetch Packages
   useEffect(() => {
@@ -363,16 +413,23 @@ Thank you.`;
             </div>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                Booked Slot Info
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                Limited Slots
               </span>
-              <span className="text-rose-400 font-semibold">Red Card</span>
+              <span className="text-amber-400 font-semibold">Yellow</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                Fully Booked Date
+              </span>
+              <span className="text-rose-400 font-semibold">Red</span>
             </div>
           </div>
         </div>
 
         {/* RIGHT ENGINE: 4 SECTIONS */}
-        <div className="lg:col-span-8 p-6 sm:p-8 bg-white/80 space-y-8">
+        <div className="lg:col-span-8 p-6 sm:p-8 bg-white/80 space-y-8 relative">
           {/* SECTION 1: SELECT PACKAGE */}
           <div className="space-y-4">
             <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -461,48 +518,205 @@ Thank you.`;
                 const isSelected = selectedDate ? isSameDay(day, selectedDate) : false;
                 const isCurrentMonth = isSameMonth(day, currentMonth);
 
+                const dStr = format(day, 'yyyy-MM-dd');
+                const dayBookings = allBookings.filter(
+                  (b) => b.date === dStr && b.status !== 'Cancelled'
+                );
+                const isFullyBooked = dayBookings.length >= 3;
+                const isLimited = dayBookings.length > 0 && dayBookings.length < 3;
+
                 return (
-                  <button
-                    key={idx}
-                    disabled={isPast || !isCurrentMonth}
-                    onClick={() => {
-                      setSelectedDate(day);
-                      setSelectedSlot(null);
-                    }}
-                    className={`h-14 sm:h-16 rounded-2xl p-1.5 flex flex-col justify-between transition-all border ${
-                      !isCurrentMonth
-                        ? 'opacity-20 cursor-not-allowed border-transparent'
-                        : isPast
-                        ? 'opacity-40 bg-slate-50 border-slate-100 cursor-not-allowed'
-                        : isSelected
-                        ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-105 font-bold'
-                        : 'bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-800'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center w-full">
-                      <span className="text-sm font-semibold">{format(day, 'd')}</span>
-                      {!isPast && isCurrentMonth && (
+                  <div key={idx} className="relative">
+                    <button
+                      disabled={isPast || !isCurrentMonth}
+                      onClick={() => {
+                        setSelectedDate(day);
+                        setSelectedSlot(null);
+                      }}
+                      onMouseEnter={() => {
+                        if (isCurrentMonth) setHoveredDate(day);
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredDate(null);
+                      }}
+                      className={`w-full min-h-[96px] sm:min-h-[105px] rounded-2xl p-2 flex flex-col justify-between transition-all border text-left ${
+                        !isCurrentMonth
+                          ? 'opacity-20 cursor-not-allowed border-transparent bg-transparent'
+                          : isPast
+                          ? 'opacity-40 bg-slate-50 border-slate-100 cursor-not-allowed'
+                          : isSelected
+                          ? isFullyBooked
+                            ? 'bg-rose-600 text-white border-rose-700 shadow-lg shadow-rose-600/30 scale-[1.02] font-bold ring-2 ring-rose-400'
+                            : 'bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-[1.02] font-bold ring-2 ring-primary/40'
+                          : isFullyBooked
+                          ? 'bg-rose-50 hover:bg-rose-100/90 border-rose-300 text-rose-950 shadow-sm'
+                          : isLimited
+                          ? 'bg-amber-50/70 hover:bg-amber-100/80 border-amber-300 text-amber-950 shadow-sm'
+                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-800'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center w-full">
                         <span
-                          className={`w-2 h-2 rounded-full ${
-                            isSelected ? 'bg-white' : 'bg-emerald-500'
+                          className={`text-xs sm:text-sm font-extrabold ${
+                            isFullyBooked && !isSelected ? 'text-rose-700' : ''
                           }`}
-                        />
+                        >
+                          {format(day, 'd')}
+                        </span>
+
+                        {!isPast && isCurrentMonth && (
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                              isSelected
+                                ? 'bg-white'
+                                : isFullyBooked
+                                ? 'bg-rose-500 animate-pulse'
+                                : isLimited
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-500'
+                            }`}
+                            title={
+                              isFullyBooked
+                                ? 'Fully Booked'
+                                : isLimited
+                                ? 'Limited Availability'
+                                : 'Available'
+                            }
+                          />
+                        )}
+                      </div>
+
+                      {/* Fully Booked Badge or Available Status */}
+                      {isCurrentMonth && !isPast && (
+                        <div className="mt-0.5 mb-1">
+                          {isFullyBooked ? (
+                            <span
+                              className={`text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider block text-center ${
+                                isSelected
+                                  ? 'bg-white/20 text-white'
+                                  : 'bg-rose-600 text-white shadow-xs'
+                              }`}
+                            >
+                              Fully Booked
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-[9px] font-bold ${
+                                isSelected
+                                  ? 'text-blue-100'
+                                  : isLimited
+                                  ? 'text-amber-700'
+                                  : 'text-slate-400'
+                              }`}
+                            >
+                              {3 - dayBookings.length} {3 - dayBookings.length === 1 ? 'Slot Left' : 'Slots Left'}
+                            </span>
+                          )}
+                        </div>
                       )}
-                    </div>
-                    {isCurrentMonth && !isPast && (
-                      <span
-                        className={`text-[10px] font-medium ${
-                          isSelected ? 'text-blue-100' : 'text-slate-400'
-                        }`}
-                      >
-                        Slots
-                      </span>
-                    )}
-                  </button>
+
+                      {/* Booking Summary inside cell (3-letter name & price) */}
+                      {isCurrentMonth && !isPast && dayBookings.length > 0 && (
+                        <div className="space-y-0.5 w-full overflow-hidden">
+                          {dayBookings.slice(0, 3).map((b, bIdx) => {
+                            const rawName = (b.name || 'Candidate').trim();
+                            const short3 = rawName.substring(0, 3);
+                            const formatted3 = short3.charAt(0).toUpperCase() + short3.slice(1);
+                            const priceStr = formatPrice(b.price || b.packagePrice || 500);
+
+                            return (
+                              <div
+                                key={b.bookingId || bIdx}
+                                className={`text-[10px] sm:text-[11px] font-extrabold leading-tight truncate px-1 py-0.5 rounded flex items-center justify-between ${
+                                  isSelected
+                                    ? 'bg-white/20 text-white'
+                                    : isFullyBooked
+                                    ? 'bg-rose-200/90 text-rose-950 border border-rose-300/60'
+                                    : 'bg-slate-200/80 text-slate-900 border border-slate-300/50'
+                                }`}
+                              >
+                                <span>{formatted3}</span>
+                                <span>: {priceStr}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </button>
+                  </div>
                 );
               })}
             </div>
           </div>
+
+          {/* HOVER TOOLTIP / POPOVER OVERLAY */}
+          {hoveredDate && (
+            <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-slate-900 text-white rounded-3xl p-5 shadow-2xl border border-slate-700 animate-in fade-in slide-in-from-bottom-4 duration-200 pointer-events-none">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-primary" />
+                  <h4 className="font-extrabold text-sm text-white">
+                    {format(hoveredDate, 'MMMM d, yyyy')}
+                  </h4>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-800 text-slate-300 rounded-full border border-slate-700">
+                  Hover Details
+                </span>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                {['Slot 1', 'Slot 2', 'Slot 3'].map((slotNumName, sIdx) => {
+                  const legacyTime = sIdx === 0 ? '09:00 AM' : sIdx === 1 ? '11:00 AM' : '03:00 PM';
+                  const hStr = format(hoveredDate, 'yyyy-MM-dd');
+                  const b = allBookings.find(
+                    (bk) =>
+                      bk.date === hStr &&
+                      bk.status !== 'Cancelled' &&
+                      (bk.slot === slotNumName || bk.slot === legacyTime)
+                  );
+
+                  if (b) {
+                    return (
+                      <div
+                        key={slotNumName}
+                        className="p-3 bg-slate-800/90 rounded-2xl border border-slate-700 space-y-1"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-700/60 pb-1">
+                          <span className="font-black text-sky-400 uppercase tracking-wider text-[11px]">
+                            {slotNumName}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            {b.status || 'Booked'}
+                          </span>
+                        </div>
+                        <p className="font-extrabold text-white text-sm pt-0.5">{b.name}</p>
+                        <div className="flex items-center justify-between text-slate-300 text-[11px]">
+                          <span className="font-medium text-slate-400">
+                            {b.packageName || 'Standard Package'}
+                          </span>
+                          <span className="font-black text-emerald-400">
+                            {formatPrice(b.price || b.packagePrice || 500)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={slotNumName}
+                      className="p-2.5 bg-slate-800/40 rounded-xl border border-slate-800/60 flex items-center justify-between text-slate-400"
+                    >
+                      <span className="font-bold text-slate-400">{slotNumName}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20">
+                        Available
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* SECTION 3: SELECT SLOT (Booked cards display Booked by, Package, Price) */}
           {selectedDate && (

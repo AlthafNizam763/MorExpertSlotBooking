@@ -39,6 +39,19 @@ export const DragDropCalendar: React.FC = () => {
 
   useEffect(() => {
     fetchBookings();
+    const interval = setInterval(fetchBookings, 5000);
+    const handleUpdate = () => {
+      fetchBookings();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('bookingUpdated', handleUpdate);
+    }
+    return () => {
+      clearInterval(interval);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('bookingUpdated', handleUpdate);
+      }
+    };
   }, []);
 
   const weekDays = [0, 1, 2, 3, 4, 5, 6].map((offset) => addDays(currentWeekStart, offset));
@@ -83,6 +96,9 @@ export const DragDropCalendar: React.FC = () => {
       if (json.success) {
         toast.success(`Rescheduled ${draggedBooking.bookingId} to ${targetDate} (${targetSlot})`, 'Slot Updated');
         fetchBookings();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('bookingUpdated'));
+        }
       } else {
         toast.error(json.error || 'Failed to reschedule booking slot.', 'Reschedule Error');
       }
@@ -118,7 +134,7 @@ export const DragDropCalendar: React.FC = () => {
             <span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> Rescheduled
           </span>
           <span className="flex items-center gap-1.5 font-bold text-rose-400">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Cancelled
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Fully Booked / Red
           </span>
         </div>
       </div>
@@ -129,12 +145,29 @@ export const DragDropCalendar: React.FC = () => {
           {/* Header Row */}
           <div className="grid grid-cols-8 gap-2 pb-2 text-center text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
             <div className="py-2 text-left pl-2">Slot</div>
-            {weekDays.map((d, i) => (
-              <div key={i} className="py-2 bg-slate-900/60 rounded-xl border border-slate-800/80">
-                <div>{format(d, 'EEE')}</div>
-                <div className="text-white text-sm font-extrabold">{format(d, 'MMM d')}</div>
-              </div>
-            ))}
+            {weekDays.map((d, i) => {
+              const dStr = format(d, 'yyyy-MM-dd');
+              const dBookings = bookings.filter((b) => b.date === dStr && b.status !== 'Cancelled');
+              const isFull = dBookings.length >= 3;
+              return (
+                <div
+                  key={i}
+                  className={`py-2 rounded-xl border transition-all ${
+                    isFull
+                      ? 'bg-rose-950/80 border-rose-600/80 text-rose-200 shadow-sm'
+                      : 'bg-slate-900/60 border-slate-800/80'
+                  }`}
+                >
+                  <div>{format(d, 'EEE')}</div>
+                  <div className="text-white text-sm font-extrabold">{format(d, 'MMM d')}</div>
+                  {isFull && (
+                    <div className="text-[9px] font-black text-rose-400 uppercase tracking-wider mt-0.5">
+                      Fully Booked
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Slot Rows */}

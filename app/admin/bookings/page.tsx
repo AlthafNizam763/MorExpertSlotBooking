@@ -164,6 +164,9 @@ export default function AdminBookingsPage() {
       setAdminEmail('');
       setAdminNotes('');
       fetchBookings();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('bookingUpdated'));
+      }
     } catch (err: any) {
       toast.error(err.message || 'Error creating admin booking.', 'Creation Failed');
     } finally {
@@ -206,6 +209,9 @@ export default function AdminBookingsPage() {
       if (json.success) {
         toast.success(`Booking ${booking.bookingId} approved successfully!`, 'Approved');
         fetchBookings();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('bookingUpdated'));
+        }
       } else {
         toast.error(json.error || 'Failed to approve booking.', 'Approval Failed');
       }
@@ -248,6 +254,9 @@ export default function AdminBookingsPage() {
       toast.success(`Booking ${selectedBooking.bookingId} updated successfully!`, 'Saved');
       setSelectedBooking(null);
       fetchBookings();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('bookingUpdated'));
+      }
     } catch (err: any) {
       toast.error(err.message || 'Error updating booking.', 'Save Failed');
     } finally {
@@ -271,6 +280,9 @@ export default function AdminBookingsPage() {
       if (json.success) {
         toast.success(`Booking ${id} deleted successfully.`, 'Deleted');
         fetchBookings();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('bookingUpdated'));
+        }
       } else {
         toast.error(json.error || 'Delete failed.', 'Error');
       }

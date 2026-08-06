@@ -9,7 +9,6 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  IndianRupee,
   TrendingUp,
   ArrowUpRight,
   Loader2,
@@ -92,7 +91,7 @@ export default function AdminDashboardPage() {
         ) : (
           <>
             {/* METRICS CARDS GRID */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {/* Card 1: Today's Bookings */}
               <div className="glass-card-dark p-5 rounded-2xl border border-slate-800 space-y-3 relative overflow-hidden">
                 <div className="flex justify-between items-start">
@@ -158,24 +157,6 @@ export default function AdminDashboardPage() {
                 <div className="flex items-baseline justify-between">
                   <span className="text-3xl font-extrabold text-rose-400">{stats.cancelledCount}</span>
                   <span className="text-xs text-slate-400">Slots</span>
-                </div>
-              </div>
-
-              {/* Card 5: Revenue */}
-              <div className="glass-card-dark p-5 rounded-2xl border border-slate-800 space-y-3">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                    Total Revenue
-                  </span>
-                  <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                    <IndianRupee className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-extrabold text-sky-400">
-                    ₹{stats.totalRevenue.toLocaleString('en-IN')}
-                  </span>
-                  <span className="text-xs text-sky-400 font-medium">Assigned</span>
                 </div>
               </div>
             </div>
