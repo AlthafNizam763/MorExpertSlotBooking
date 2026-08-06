@@ -1,6 +1,6 @@
 import React from 'react';
 import Image from 'next/image';
-import logoImg from '@/app/src/images/logo.jpg';
+import logoImg from '@/app/src/images/logo2.png';
 
 interface LogoProps {
   className?: string;
@@ -17,13 +17,16 @@ export const MorExpertLogo: React.FC<LogoProps> = ({
   textColor = 'text-slate-900',
   subtextColor = 'text-primary',
 }) => {
+  // Scale up size to compensate for built-in margin/padding in logo2.png image
+  const displaySize = Math.round(size * 1.65);
+
   const logoImage = (
     <Image
       src={logoImg}
       alt="MorExpert Logo"
-      width={size}
-      height={size}
-      style={{ width: size, height: size }}
+      width={displaySize}
+      height={displaySize}
+      style={{ width: displaySize, height: displaySize }}
       className={`shrink-0 object-contain transition-transform duration-300 hover:scale-105 ${className}`}
       priority
     />
