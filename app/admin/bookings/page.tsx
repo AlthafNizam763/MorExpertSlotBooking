@@ -24,8 +24,12 @@ import {
   Maximize2,
   Lock,
   DownloadCloud,
+  Plus,
+  ShieldCheck,
+  User,
+  Calendar,
 } from 'lucide-react';
-import { IBooking, BookingStatus } from '@/types';
+import { IBooking, BookingStatus, IPackage } from '@/types';
 import { formatPrice, getStatusBadgeClass } from '@/lib/utils';
 import { useToast, useConfirm } from '@/components/Notification/ToastContext';
 
@@ -37,6 +41,20 @@ export default function AdminBookingsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
+  // Admin Slot Booking Modal State
+  const [showAdminBookingModal, setShowAdminBookingModal] = useState(false);
+  const [packages, setPackages] = useState<IPackage[]>([]);
+  const [adminName, setAdminName] = useState('');
+  const [adminPhone, setAdminPhone] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPackageName, setAdminPackageName] = useState('Golden Review Package');
+  const [adminPackagePrice, setAdminPackagePrice] = useState<number>(999);
+  const [adminDate, setAdminDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [adminSlot, setAdminSlot] = useState<string>('Slot 1');
+  const [adminStatus, setAdminStatus] = useState<BookingStatus>('Approved');
+  const [adminNotes, setAdminNotes] = useState('');
+  const [creatingBooking, setCreatingBooking] = useState(false);
 
   // Edit / Price Assignment / Reschedule Modal State
   const [selectedBooking, setSelectedBooking] = useState<IBooking | null>(null);
@@ -81,6 +99,77 @@ export default function AdminBookingsPage() {
   useEffect(() => {
     fetchBookings();
   }, [search, statusFilter]);
+
+  useEffect(() => {
+    fetch('/api/packages')
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data)) {
+          setPackages(json.data);
+          if (json.data.length > 0) {
+            setAdminPackageName(json.data[0].name);
+            setAdminPackagePrice(json.data[0].price);
+          }
+        }
+      })
+      .catch((err) => console.error('Error fetching packages:', err));
+  }, []);
+
+  const handlePackageChange = (selectedPkgName: string) => {
+    setAdminPackageName(selectedPkgName);
+    const pkg = packages.find((p) => p.name === selectedPkgName);
+    if (pkg) {
+      setAdminPackagePrice(pkg.price);
+    }
+  };
+
+  const handleCreateAdminBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminName.trim() || !adminPhone.trim() || !adminDate || !adminSlot) {
+      toast.error('Full Name, Phone Number, Date, and Slot are required.', 'Missing Fields');
+      return;
+    }
+
+    setCreatingBooking(true);
+    try {
+      const payload = {
+        name: adminName.trim(),
+        phone: adminPhone.trim(),
+        email: adminEmail.trim() || 'adminbooking@morexpert.com',
+        packageName: adminPackageName,
+        packagePrice: adminPackagePrice,
+        date: adminDate,
+        slot: adminSlot,
+        status: adminStatus,
+        notes: adminNotes.trim(),
+        bookingSource: 'Admin',
+      };
+
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to create admin booking.');
+      }
+
+      toast.success(`Admin booking ${json.bookingId || ''} created successfully!`, 'Booking Created');
+      setShowAdminBookingModal(false);
+      // Reset Form
+      setAdminName('');
+      setAdminPhone('');
+      setAdminEmail('');
+      setAdminNotes('');
+      fetchBookings();
+    } catch (err: any) {
+      toast.error(err.message || 'Error creating admin booking.', 'Creation Failed');
+    } finally {
+      setCreatingBooking(false);
+    }
+  };
 
   const openActionModal = (booking: IBooking, tab: 'details' | 'price' | 'reschedule' | 'notes' = 'details') => {
     setSelectedBooking(booking);
@@ -210,6 +299,13 @@ export default function AdminBookingsPage() {
 
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setShowAdminBookingModal(true)}
+              className="px-4 py-2.5 bg-primary hover:bg-blue-600 font-bold text-xs text-white rounded-xl transition-all shadow-lg shadow-primary/25 flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Create Admin Booking</span>
+            </button>
+            <button
               onClick={handleExportCsv}
               className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 font-semibold text-xs text-white border border-slate-700 rounded-xl transition-all flex items-center gap-2"
             >
@@ -269,13 +365,14 @@ export default function AdminBookingsPage() {
                     <th className="py-4 px-4">Date & Slot</th>
                     <th className="py-4 px-4">Price</th>
                     <th className="py-4 px-4">Status</th>
+                    <th className="py-4 px-4">Booking Source</th>
                     <th className="py-4 px-4 text-right">Approval & Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
                   {bookings.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-500">
+                      <td colSpan={8} className="py-12 text-center text-slate-500">
                         No bookings match your current search/filter criteria.
                       </td>
                     </tr>
@@ -309,6 +406,17 @@ export default function AdminBookingsPage() {
                             >
                               {b.status}
                             </span>
+                          </td>
+                          <td className="py-4 px-4">
+                            {b.bookingSource === 'Admin' ? (
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1 w-fit">
+                                <ShieldCheck className="w-3.5 h-3.5 text-purple-400" /> Admin
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30 flex items-center gap-1 w-fit">
+                                <User className="w-3.5 h-3.5 text-sky-400" /> User
+                              </span>
+                            )}
                           </td>
                           <td className="py-4 px-4 text-right space-x-2">
                             {/* Approve Quick Button */}
@@ -583,6 +691,175 @@ export default function AdminBookingsPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedBooking(null)}
+                  className="px-4 py-3 text-slate-400 hover:bg-slate-800 rounded-xl font-semibold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN SLOT BOOKING MODAL */}
+      {showAdminBookingModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 text-white animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-purple-400" />
+                <h3 className="text-lg font-extrabold text-white font-sans">
+                  Create Admin Slot Booking
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowAdminBookingModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAdminBooking} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">
+                  Customer Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={adminName}
+                  onChange={(e) => setAdminName(e.target.value)}
+                  placeholder="e.g. John Doe"
+                  className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Phone Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={adminPhone}
+                    onChange={(e) => setAdminPhone(e.target.value)}
+                    placeholder="+91 9876543210"
+                    className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    placeholder="candidate@example.com"
+                    className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">
+                  Package *
+                </label>
+                <select
+                  value={adminPackageName}
+                  onChange={(e) => handlePackageChange(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold focus:border-primary focus:outline-none"
+                >
+                  {packages.length > 0 ? (
+                    packages.map((pkg) => (
+                      <option key={pkg._id || pkg.name} value={pkg.name}>
+                        {pkg.name} — ₹{pkg.price}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Silver Review Package">Silver Review Package — ₹499</option>
+                      <option value="Golden Review Package">Golden Review Package — ₹999</option>
+                      <option value="Premium Review Package">Premium Review Package — ₹1999</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Booking Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={adminDate}
+                    onChange={(e) => setAdminDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Slot *
+                  </label>
+                  <select
+                    value={adminSlot}
+                    onChange={(e) => setAdminSlot(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold focus:border-primary focus:outline-none"
+                  >
+                    <option value="Slot 1">Slot 1 (09:00 AM)</option>
+                    <option value="Slot 2">Slot 2 (11:00 AM)</option>
+                    <option value="Slot 3">Slot 3 (03:00 PM)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">
+                  Booking Status
+                </label>
+                <select
+                  value={adminStatus}
+                  onChange={(e) => setAdminStatus(e.target.value as BookingStatus)}
+                  className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold focus:border-primary focus:outline-none"
+                >
+                  <option value="Approved">Approved (Lock Slot Immediately)</option>
+                  <option value="Pending Admin Approval">Pending Admin Approval</option>
+                  <option value="Confirmed">Confirmed</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">
+                  Internal Remarks / Notes
+                </label>
+                <textarea
+                  rows={2}
+                  value={adminNotes}
+                  onChange={(e) => setAdminNotes(e.target.value)}
+                  placeholder="Notes about candidate or admin booking source..."
+                  className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white text-xs focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-3 flex gap-3">
+                <button
+                  type="submit"
+                  disabled={creatingBooking}
+                  className="flex-1 py-3 font-bold text-white bg-primary hover:bg-blue-600 rounded-xl shadow-lg shadow-primary/25 transition-all flex items-center justify-center gap-2"
+                >
+                  {creatingBooking ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <span>Create & Save Booking</span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAdminBookingModal(false)}
                   className="px-4 py-3 text-slate-400 hover:bg-slate-800 rounded-xl font-semibold"
                 >
                   Cancel

@@ -42,6 +42,7 @@ export interface IBooking {
   rescheduledFrom?: { date: string; slot: string };
   rescheduledTo?: { date: string; slot: string };
   otpVerified?: boolean;
+  bookingSource?: 'User' | 'Admin';
   timeline?: ITimelineEvent[];
   createdAt?: string;
 }

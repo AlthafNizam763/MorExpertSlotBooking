@@ -173,8 +173,13 @@ export const DragDropCalendar: React.FC = () => {
                               className="p-2.5 rounded-lg bg-slate-800/90 border border-slate-700 hover:border-primary cursor-grab active:cursor-grabbing shadow-md space-y-1 group transition-all"
                             >
                               <div className="flex items-center justify-between">
-                                <span className="font-mono font-bold text-[10px] text-primary">
+                                <span className="font-mono font-bold text-[10px] text-primary flex items-center gap-1">
                                   {b.bookingId}
+                                  {b.bookingSource === 'Admin' && (
+                                    <span className="px-1 py-0.2 text-[8px] bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded">
+                                      Admin
+                                    </span>
+                                  )}
                                 </span>
                                 <span
                                   className={`w-2 h-2 rounded-full ${

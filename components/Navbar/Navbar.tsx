@@ -11,13 +11,13 @@ export const Navbar: React.FC = () => {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navLinks = [
-    // { name: 'Home', href: '/' },
-    { name: 'Book Slot', href: '/book' },
-    // { name: 'Track Booking', href: '/track' },
-    // { name: 'How It Works', href: '/#how-it-works' },
-    // { name: 'Pricing', href: '/#pricing' },
-  ];
+  // const navLinks = [
+  //   // { name: 'Home', href: '/' },
+  //   // { name: 'Book Slot', href: '/book' },
+  //   // { name: 'Track Booking', href: '/track' },
+  //   // { name: 'How It Works', href: '/#how-it-works' },
+  //   // { name: 'Pricing', href: '/#pricing' },
+  // ];
 
   return (
     <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-white/75 border-b border-slate-200/60 shadow-sm transition-all">

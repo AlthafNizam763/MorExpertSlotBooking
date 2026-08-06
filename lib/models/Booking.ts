@@ -20,6 +20,7 @@ export interface IBookingDocument extends Document {
   rescheduledFrom?: { date: string; slot: string };
   rescheduledTo?: { date: string; slot: string };
   otpVerified: boolean;
+  bookingSource?: 'User' | 'Admin';
   timeline: Array<{ title: string; timestamp: Date; actor: string; notes?: string }>;
   createdAt: Date;
 }
@@ -64,10 +65,15 @@ const BookingSchema: Schema = new Schema(
       slot: { type: String },
     },
     otpVerified: { type: Boolean, default: false },
+    bookingSource: { type: String, enum: ['User', 'Admin'], default: 'User' },
     timeline: { type: [TimelineEventSchema], default: [] },
   },
   { timestamps: true }
 );
+
+if (mongoose.models && mongoose.models.Booking) {
+  delete (mongoose.models as any).Booking;
+}
 
 export const Booking: Model<IBookingDocument> =
   mongoose.models.Booking || mongoose.model<IBookingDocument>('Booking', BookingSchema);

@@ -62,6 +62,8 @@ export async function POST(req: Request) {
     let packageName = 'Standard Package';
     let packagePrice: number | null = 500;
     let resumeUrl = '';
+    let bookingSource: 'User' | 'Admin' = 'User';
+    let status: any = 'Pending Admin Approval';
 
     const contentType = req.headers.get('content-type') || '';
 
@@ -76,6 +78,9 @@ export async function POST(req: Request) {
         notes = json.notes || '';
         packageName = json.packageName || 'Standard Package';
         packagePrice = json.packagePrice !== undefined ? Number(json.packagePrice) : 500;
+        if (json.bookingSource === 'Admin') bookingSource = 'Admin';
+        if (json.status) status = json.status;
+        else if (bookingSource === 'Admin') status = 'Approved';
       } catch (err) {
         console.warn('Error parsing JSON payload:', err);
       }
@@ -91,6 +96,11 @@ export async function POST(req: Request) {
         packageName = (formData.get('packageName') as string) || 'Standard Package';
         const pStr = formData.get('packagePrice') as string;
         packagePrice = pStr ? Number(pStr) : 500;
+        const srcStr = formData.get('bookingSource') as string;
+        if (srcStr === 'Admin') bookingSource = 'Admin';
+        const stStr = formData.get('status') as string;
+        if (stStr) status = stStr;
+        else if (bookingSource === 'Admin') status = 'Approved';
 
         const resumeFile = formData.get('resume') as File | null;
         if (resumeFile && typeof resumeFile === 'object' && resumeFile.name) {
@@ -160,17 +170,18 @@ export async function POST(req: Request) {
     const newBookingData: IBooking = {
       bookingId,
       name: name.trim(),
-      email: email ? email.trim().toLowerCase() : 'noemail@morexpert.com',
+      email: email ? email.trim().toLowerCase() : 'adminbooking@morexpert.com',
       phone: phone.trim(),
       resume: resumeUrl,
       notes: notes.trim(),
       date,
       slot,
-      status: 'Pending',
+      status: status || 'Pending Admin Approval',
       price: packagePrice,
       packageName,
       packagePrice,
-      remarks: '',
+      bookingSource,
+      remarks: bookingSource === 'Admin' ? 'Created directly from Admin Panel' : '',
       createdAt: new Date().toISOString(),
     };
 
