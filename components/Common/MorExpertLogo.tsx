@@ -12,8 +12,8 @@ interface LogoProps {
 
 export const MorExpertLogo: React.FC<LogoProps> = ({
   className = '',
-  size = 80,
-  showText = true,
+  size = 40,
+  showText = false,
   textColor = 'text-slate-900',
   subtextColor = 'text-primary',
 }) => {
