@@ -541,7 +541,7 @@ Thank you.`;
                 return (
                   <div key={idx} className="relative">
                     <button
-                      disabled={isPast || !isCurrentMonth}
+                      disabled={!isCurrentMonth}
                       onClick={() => {
                         setSelectedDate(day);
                         setSelectedSlot(null);
@@ -549,8 +549,6 @@ Thank you.`;
                       className={`w-full min-h-[74px] sm:min-h-[105px] rounded-xl sm:rounded-2xl p-1 sm:p-2 flex flex-col justify-between transition-all border text-left overflow-hidden ${
                         !isCurrentMonth
                           ? 'opacity-20 cursor-not-allowed border-transparent bg-transparent'
-                          : isPast
-                          ? 'opacity-40 bg-slate-50 border-slate-100 cursor-not-allowed'
                           : isSelected
                           ? isFullyBooked
                             ? 'bg-rose-600 text-white border-rose-700 shadow-lg shadow-rose-600/30 scale-[1.02] font-bold ring-2 ring-rose-400'
@@ -559,6 +557,10 @@ Thank you.`;
                           ? 'bg-rose-50 hover:bg-rose-100/90 border-rose-300 text-rose-950 shadow-sm'
                           : isLimited
                           ? 'bg-amber-50/70 hover:bg-amber-100/80 border-amber-300 text-amber-950 shadow-sm'
+                          : isPast
+                          ? dayBookings.length > 0
+                            ? 'bg-slate-100 hover:bg-slate-200/80 border-slate-300 text-slate-900 shadow-sm'
+                            : 'bg-slate-50/70 hover:bg-slate-100 border-slate-200/60 text-slate-500'
                           : 'bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-800'
                       }`}
                     >
@@ -571,7 +573,7 @@ Thank you.`;
                           {format(day, 'd')}
                         </span>
 
-                        {!isPast && isCurrentMonth && (
+                        {isCurrentMonth && (
                           <span
                             className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0 ${
                               isSelected
@@ -580,6 +582,8 @@ Thank you.`;
                                 ? 'bg-rose-500 animate-pulse'
                                 : isLimited
                                 ? 'bg-amber-500'
+                                : isPast
+                                ? 'bg-slate-300'
                                 : 'bg-emerald-500'
                             }`}
                           />
@@ -587,7 +591,7 @@ Thank you.`;
                       </div>
 
                       {/* Fully Booked Badge or Available Status */}
-                      {isCurrentMonth && !isPast && (
+                      {isCurrentMonth && (
                         <div className="my-0.5">
                           {isFullyBooked ? (
                             <>
@@ -610,6 +614,20 @@ Thank you.`;
                                 FULL
                               </span>
                             </>
+                          ) : isPast ? (
+                            <span
+                              className={`hidden sm:inline text-[9px] font-bold ${
+                                isSelected
+                                  ? 'text-blue-100'
+                                  : isLimited
+                                  ? 'text-amber-700'
+                                  : 'text-slate-400'
+                              }`}
+                            >
+                              {dayBookings.length > 0
+                                ? `${dayBookings.length} Booked`
+                                : 'Ended'}
+                            </span>
                           ) : (
                             <>
                               <span
@@ -639,28 +657,29 @@ Thank you.`;
                         </div>
                       )}
 
-                      {/* Booking Summary inside cell (3-letter name & price) */}
-                      {isCurrentMonth && !isPast && dayBookings.length > 0 && (
+                      {/* Booking Summary inside cell (Customer Details: Name & Price) */}
+                      {isCurrentMonth && dayBookings.length > 0 && (
                         <div className="space-y-0.5 w-full overflow-hidden">
                           {dayBookings.slice(0, 3).map((b, bIdx) => {
                             const rawName = (b.name || 'Candidate').trim();
-                            const short3 = rawName.substring(0, 3);
-                            const formatted3 = short3.charAt(0).toUpperCase() + short3.slice(1);
+                            const parts = rawName.split(' ');
+                            const displayName = parts[0] || rawName;
                             const priceStr = formatPrice(b.price || b.packagePrice || 500);
 
                             return (
                               <div
-                                key={b.bookingId || bIdx}
+                                key={b.bookingId || b._id || bIdx}
+                                title={`${b.name} - ${b.packageName || 'Package'} (${priceStr})`}
                                 className={`text-[7.5px] sm:text-[10px] font-extrabold leading-tight truncate px-0.5 sm:px-1 py-0.2 sm:py-0.5 rounded flex items-center justify-between overflow-hidden ${
                                   isSelected
                                     ? 'bg-white/20 text-white'
                                     : isFullyBooked
                                     ? 'bg-rose-200/90 text-rose-950 border border-rose-300/60'
-                                    : 'bg-slate-200/80 text-slate-900 border border-slate-300/50'
+                                    : 'bg-indigo-100/90 text-indigo-950 border border-indigo-200/80 shadow-xs'
                                 }`}
                               >
-                                <span className="truncate">{formatted3}</span>
-                                <span className="ml-0.5 shrink-0 whitespace-nowrap">:{priceStr}</span>
+                                <span className="truncate">{displayName}</span>
+                                <span className="ml-0.5 shrink-0 whitespace-nowrap font-black">{priceStr}</span>
                               </div>
                             );
                           })}
@@ -676,99 +695,125 @@ Thank you.`;
           {/* SECTION 3: SELECT SLOT (Booked cards display Booked by, Package, Price) */}
           {selectedDate && (
             <div className="pt-6 border-t border-slate-200/80 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-primary" />
-                  <span>3. Select Slot for {format(selectedDate, 'MMM d, yyyy')}</span>
-                </h3>
-                {slotsLoading && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {availableSlots.map((s, idx) => {
-                  const isSelected = selectedSlot === s.time;
-                  const isBooked = !s.isAvailable || Boolean(s.bookedInfo);
-                  const displayName = s.displayName || `Slot ${idx + 1}`;
-
-                  if (isBooked && s.bookedInfo) {
-                    // BOOKED SLOT DISPLAY CARD
-                    return (
-                      <div
-                        key={s.time}
-                        className="p-5 sm:p-6 min-h-[120px] rounded-2xl border border-rose-200 bg-rose-50/90 text-left shadow-sm space-y-2 relative overflow-hidden flex flex-col justify-between"
-                      >
-                        <div className="flex items-center justify-between border-b border-rose-200 pb-2">
-                          <span className="text-xs font-black text-rose-700 uppercase tracking-wider">
-                            {displayName} (Booked)
-                          </span>
-                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                        </div>
-                        <div className="space-y-1 text-xs min-w-0">
-                          <p className="font-extrabold text-slate-900 truncate" title={s.bookedInfo.name}>
-                            Booked by: <span className="text-rose-800 font-bold">{s.bookedInfo.name}</span>
-                          </p>
-                          <p className="text-slate-700 truncate" title={s.bookedInfo.packageName}>
-                            Package: <span className="font-semibold">{s.bookedInfo.packageName}</span>
-                          </p>
-                        </div>
-                        <p className="text-xs font-black text-rose-700 pt-1 border-t border-rose-200/60 shrink-0 whitespace-nowrap">
-                          Price: {formatPrice(s.bookedInfo.price)}
-                        </p>
-                      </div>
-                    );
-                  }
-
-                  if (isBooked && !s.bookedInfo) {
-                    return (
-                      <div
-                        key={s.time}
-                        className="p-5 sm:p-6 min-h-[110px] sm:min-h-[120px] rounded-2xl border border-rose-200 bg-rose-50/80 text-left shadow-sm opacity-70 flex flex-col justify-between"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-extrabold text-rose-800">{displayName}</span>
-                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                        </div>
-                        <p className="text-xs font-bold text-rose-600 mt-2">Fully Booked</p>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <button
-                      key={s.time}
-                      type="button"
-                      onClick={() => setSelectedSlot(s.time)}
-                      className={`p-5 sm:p-6 min-h-[110px] sm:min-h-[120px] rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group hover:-translate-y-0.5 ${
-                        isSelected
-                          ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 font-bold scale-[1.02]'
-                          : 'bg-emerald-50/40 hover:border-emerald-400 border-emerald-200 text-slate-900 shadow-sm'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span className="text-base font-extrabold">{displayName}</span>
-                        <span
-                          className={`w-3 h-3 rounded-full shrink-0 ${
-                            isSelected ? 'bg-white' : 'bg-emerald-500'
-                          }`}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between w-full">
-                        <span
-                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                            isSelected
-                              ? 'bg-white/20 text-white'
-                              : 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20'
-                          }`}
-                        >
-                          Available
+              {(() => {
+                const isSelectedPast = isBefore(startOfDay(selectedDate), startOfDay(new Date()));
+                return (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-primary" />
+                        <span>
+                          {isSelectedPast ? '3. Booking Details for ' : '3. Select Slot for '}
+                          {format(selectedDate, 'MMM d, yyyy')}
                         </span>
-                        <Clock className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      </h3>
+                      {slotsLoading && <Loader2 className="w-4 h-4 text-primary animate-spin" />}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {availableSlots.map((s, idx) => {
+                        const isSelected = selectedSlot === s.time;
+                        const isBooked = !s.isAvailable || Boolean(s.bookedInfo);
+                        const displayName = s.displayName || `Slot ${idx + 1}`;
+
+                        if (isBooked && s.bookedInfo) {
+                          // BOOKED SLOT DISPLAY CARD
+                          return (
+                            <div
+                              key={s.time}
+                              className="p-5 sm:p-6 min-h-[120px] rounded-2xl border border-rose-200 bg-rose-50/90 text-left shadow-sm space-y-2 relative overflow-hidden flex flex-col justify-between"
+                            >
+                              <div className="flex items-center justify-between border-b border-rose-200 pb-2">
+                                <span className="text-xs font-black text-rose-700 uppercase tracking-wider">
+                                  {displayName} (Booked)
+                                </span>
+                                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                              </div>
+                              <div className="space-y-1 text-xs min-w-0">
+                                <p className="font-extrabold text-slate-900 truncate" title={s.bookedInfo.name}>
+                                  Booked by: <span className="text-rose-800 font-bold">{s.bookedInfo.name}</span>
+                                </p>
+                                <p className="text-slate-700 truncate" title={s.bookedInfo.packageName}>
+                                  Package: <span className="font-semibold">{s.bookedInfo.packageName}</span>
+                                </p>
+                              </div>
+                              <p className="text-xs font-black text-rose-700 pt-1 border-t border-rose-200/60 shrink-0 whitespace-nowrap">
+                                Price: {formatPrice(s.bookedInfo.price)}
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        if (isBooked && !s.bookedInfo) {
+                          return (
+                            <div
+                              key={s.time}
+                              className="p-5 sm:p-6 min-h-[110px] sm:min-h-[120px] rounded-2xl border border-rose-200 bg-rose-50/80 text-left shadow-sm opacity-70 flex flex-col justify-between"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-extrabold text-rose-800">{displayName}</span>
+                                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                              </div>
+                              <p className="text-xs font-bold text-rose-600 mt-2">Fully Booked</p>
+                            </div>
+                          );
+                        }
+
+                        if (isSelectedPast) {
+                          // UNBOOKED PAST SLOT CARD
+                          return (
+                            <div
+                              key={s.time}
+                              className="p-5 sm:p-6 min-h-[110px] sm:min-h-[120px] rounded-2xl border border-slate-200 bg-slate-50 text-left shadow-xs opacity-60 flex flex-col justify-between"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-extrabold text-slate-600">{displayName}</span>
+                                <span className="w-2.5 h-2.5 rounded-full bg-slate-300 shrink-0" />
+                              </div>
+                              <p className="text-xs font-medium text-slate-400 mt-2">Slot Ended (Not Booked)</p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={s.time}
+                            type="button"
+                            onClick={() => setSelectedSlot(s.time)}
+                            className={`p-5 sm:p-6 min-h-[110px] sm:min-h-[120px] rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group hover:-translate-y-0.5 ${
+                              isSelected
+                                ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 font-bold scale-[1.02]'
+                                : 'bg-emerald-50/40 hover:border-emerald-400 border-emerald-200 text-slate-900 shadow-sm'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className="text-base font-extrabold">{displayName}</span>
+                              <span
+                                className={`w-3 h-3 rounded-full shrink-0 ${
+                                  isSelected ? 'bg-white' : 'bg-emerald-500'
+                                }`}
+                              />
+                            </div>
+
+                            <div className="flex items-center justify-between w-full">
+                              <span
+                                className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                                  isSelected
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20'
+                                }`}
+                              >
+                                Available
+                              </span>
+                              <Clock className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
 

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { format, startOfWeek, addDays } from 'date-fns';
-import { CalendarDays, Calendar as CalendarIcon, CheckCircle2, User, RefreshCw } from 'lucide-react';
+import { format, startOfWeek, addDays, subWeeks, addWeeks } from 'date-fns';
+import { CalendarDays, Calendar as CalendarIcon, CheckCircle2, User, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { IBooking } from '@/types';
 import { getStatusBadgeClass } from '@/lib/utils';
 import { useToast, useConfirm } from '@/components/Notification/ToastContext';
@@ -21,6 +21,10 @@ export const DragDropCalendar: React.FC = () => {
   const [bookings, setBookings] = useState<IBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggedBooking, setDraggedBooking] = useState<IBooking | null>(null);
+
+  const handlePrevWeek = () => setCurrentWeekStart(subWeeks(currentWeekStart, 1));
+  const handleNextWeek = () => setCurrentWeekStart(addWeeks(currentWeekStart, 1));
+  const handleTodayWeek = () => setCurrentWeekStart(startOfWeek(new Date()));
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -122,20 +126,52 @@ export const DragDropCalendar: React.FC = () => {
           </p>
         </div>
 
-        {/* Color Legend */}
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="flex items-center gap-1.5 font-bold text-emerald-400">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Approved
-          </span>
-          <span className="flex items-center gap-1.5 font-bold text-amber-400">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Pending
-          </span>
-          <span className="flex items-center gap-1.5 font-bold text-purple-400">
-            <span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> Rescheduled
-          </span>
-          <span className="flex items-center gap-1.5 font-bold text-rose-400">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Fully Booked / Red
-          </span>
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Week Navigator */}
+          <div className="flex items-center gap-2 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800">
+            <button
+              type="button"
+              onClick={handlePrevWeek}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+              title="Previous Week"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={handleTodayWeek}
+              className="px-2.5 py-1 text-xs font-bold text-slate-300 hover:text-white bg-slate-800/80 rounded-md"
+            >
+              Today
+            </button>
+            <span className="text-xs font-extrabold text-slate-200 px-1">
+              {format(weekDays[0], 'MMM d')} - {format(weekDays[6], 'MMM d, yyyy')}
+            </span>
+            <button
+              type="button"
+              onClick={handleNextWeek}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
+              title="Next Week"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Color Legend */}
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="flex items-center gap-1.5 font-bold text-emerald-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Approved
+            </span>
+            <span className="flex items-center gap-1.5 font-bold text-amber-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Pending
+            </span>
+            <span className="flex items-center gap-1.5 font-bold text-purple-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-500" /> Rescheduled
+            </span>
+            <span className="flex items-center gap-1.5 font-bold text-rose-400">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Fully Booked / Red
+            </span>
+          </div>
         </div>
       </div>
 
