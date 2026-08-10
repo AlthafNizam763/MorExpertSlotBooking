@@ -28,6 +28,7 @@ import {
   ShieldCheck,
   User,
   Calendar,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { IBooking, BookingStatus, IPackage } from '@/types';
 import { formatPrice, getStatusBadgeClass } from '@/lib/utils';
@@ -54,6 +55,8 @@ export default function AdminBookingsPage() {
   const [adminSlot, setAdminSlot] = useState<string>('Slot 1');
   const [adminStatus, setAdminStatus] = useState<BookingStatus>('Approved');
   const [adminNotes, setAdminNotes] = useState('');
+  const [adminMarkPaid, setAdminMarkPaid] = useState(true);
+  const [adminProofFile, setAdminProofFile] = useState<File | null>(null);
   const [creatingBooking, setCreatingBooking] = useState(false);
 
   // Edit / Price Assignment / Reschedule Modal State
@@ -73,6 +76,8 @@ export default function AdminBookingsPage() {
 
   // PDF Previewer State
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  // Payment screenshot previewer
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -132,24 +137,22 @@ export default function AdminBookingsPage() {
 
     setCreatingBooking(true);
     try {
-      const payload = {
-        name: adminName.trim(),
-        phone: adminPhone.trim(),
-        email: adminEmail.trim() || 'adminbooking@morexpert.com',
-        packageName: adminPackageName,
-        packagePrice: adminPackagePrice,
-        date: adminDate,
-        slot: adminSlot,
-        status: adminStatus,
-        notes: adminNotes.trim(),
-        bookingSource: 'Admin',
-      };
+      // Sent as FormData so the admin can attach the payment screenshot they
+      // received offline — the same proof customers upload themselves.
+      const form = new FormData();
+      form.append('name', adminName.trim());
+      form.append('phone', adminPhone.trim());
+      form.append('email', adminEmail.trim() || 'adminbooking@morexpert.com');
+      form.append('packageName', adminPackageName);
+      form.append('packagePrice', String(adminPackagePrice));
+      form.append('date', adminDate);
+      form.append('slot', adminSlot);
+      form.append('status', adminStatus);
+      form.append('notes', adminNotes.trim());
+      form.append('markPaid', String(adminMarkPaid));
+      if (adminProofFile) form.append('paymentProof', adminProofFile);
 
-      const res = await fetch('/api/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch('/api/bookings', { method: 'POST', body: form });
 
       const json = await res.json();
       if (!res.ok || !json.success) {
@@ -163,6 +166,7 @@ export default function AdminBookingsPage() {
       setAdminPhone('');
       setAdminEmail('');
       setAdminNotes('');
+      setAdminProofFile(null);
       fetchBookings();
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('bookingUpdated'));
@@ -348,6 +352,7 @@ export default function AdminBookingsPage() {
               className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:border-primary focus:outline-none"
             >
               <option value="">All Statuses</option>
+              <option value="Booking Confirmed">Booking Confirmed (Paid)</option>
               <option value="Pending Admin Approval">Pending Approval</option>
               <option value="Approved">Approved</option>
               <option value="Price Assigned">Price Assigned</option>
@@ -372,25 +377,30 @@ export default function AdminBookingsPage() {
                 <thead className="bg-slate-900/90 text-slate-400 uppercase tracking-wider border-b border-slate-800">
                   <tr>
                     <th className="py-4 px-4">Booking ID</th>
-                    <th className="py-4 px-4">Candidate Details</th>
+                    <th className="py-4 px-4">Customer Name & Phone</th>
                     <th className="py-4 px-4">Selected Package</th>
-                    <th className="py-4 px-4">Date & Slot</th>
-                    <th className="py-4 px-4">Price</th>
-                    <th className="py-4 px-4">Status</th>
-                    <th className="py-4 px-4">Booking Source</th>
+                    <th className="py-4 px-4">Booking Date & Slot</th>
+                    <th className="py-4 px-4">Package Price</th>
+                    <th className="py-4 px-4">Payment Status</th>
+                    <th className="py-4 px-4">Payment Screenshot</th>
+                    <th className="py-4 px-4">Booking Status</th>
+                    <th className="py-4 px-4">Source</th>
                     <th className="py-4 px-4 text-right">Approval & Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/80">
                   {bookings.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-500">
+                      <td colSpan={10} className="py-12 text-center text-slate-500">
                         No bookings match your current search/filter criteria.
                       </td>
                     </tr>
                   ) : (
                     bookings.map((b) => {
                       const badgeStyle = getStatusBadgeClass(b.status);
+                      const paymentStatus = b.paymentStatus || 'Not Recorded';
+                      const paymentBadge = getStatusBadgeClass(paymentStatus);
+                      const isPaid = paymentStatus === 'Payment Verified';
                       return (
                         <tr key={b.bookingId} className="hover:bg-slate-900/60 transition-colors">
                           <td className="py-4 px-4 font-mono font-bold text-primary">
@@ -410,7 +420,49 @@ export default function AdminBookingsPage() {
                             <div className="text-accent text-[11px] font-bold">{b.slot}</div>
                           </td>
                           <td className="py-4 px-4 font-bold text-slate-200 text-sm">
-                            {formatPrice(b.price)}
+                            {formatPrice(b.packagePrice ?? b.price)}
+                          </td>
+                          <td className="py-4 px-4">
+                            <span
+                              className={`px-3 py-1 rounded-full text-[11px] font-bold border flex items-center gap-1 w-fit ${paymentBadge.bg} ${paymentBadge.text} ${paymentBadge.border}`}
+                            >
+                              {isPaid && <ShieldCheck className="w-3.5 h-3.5" />}
+                              {paymentStatus}
+                            </span>
+                            {b.amountPaid !== undefined && b.amountPaid !== null && (
+                              <div className="text-[10px] text-slate-400 mt-1">
+                                Paid {formatPrice(b.amountPaid)}
+                                {b.paidAt ? ` · ${new Date(b.paidAt).toLocaleDateString()}` : ''}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-4 px-4">
+                            {b.paymentProofUrl ? (
+                              <button
+                                onClick={() => setPreviewImageUrl(b.paymentProofUrl!)}
+                                className="flex items-center gap-2.5 group"
+                                title="Open the payment screenshot"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={b.paymentProofUrl}
+                                  alt={`Payment screenshot from ${b.name}`}
+                                  className="w-12 h-12 object-cover rounded-lg border border-slate-700 group-hover:border-primary transition-colors shrink-0"
+                                />
+                                <span className="text-[11px] text-primary group-hover:text-blue-400 font-bold flex items-center gap-1">
+                                  <Eye className="w-3.5 h-3.5" /> View
+                                </span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-600 italic text-[11px]">
+                                No screenshot
+                              </span>
+                            )}
+                            <div className="text-[10px] text-slate-500 capitalize mt-1">
+                              {b.verificationMode
+                                ? `verified via ${b.verificationMode}`
+                                : b.transactionRef || ''}
+                            </div>
                           </td>
                           <td className="py-4 px-4">
                             <span
@@ -431,8 +483,10 @@ export default function AdminBookingsPage() {
                             )}
                           </td>
                           <td className="py-4 px-4 text-right space-x-2">
-                            {/* Approve Quick Button */}
-                            {b.status !== 'Approved' && b.status !== 'Completed' && (
+                            {/* Approve Quick Button — paid bookings are already confirmed */}
+                            {b.status !== 'Approved' &&
+                              b.status !== 'Completed' &&
+                              b.status !== 'Booking Confirmed' && (
                               <button
                                 onClick={() => handleApproveBooking(b)}
                                 className="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/30 rounded-xl text-xs font-bold transition-all"
@@ -468,6 +522,46 @@ export default function AdminBookingsPage() {
           )}
         </div>
       </main>
+
+      {/* PAYMENT SCREENSHOT PREVIEW MODAL */}
+      {previewImageUrl && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-2xl w-full max-h-[90vh] overflow-auto shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-sm text-primary">
+                <ImageIcon className="w-5 h-5" />
+                <span>Payment Screenshot</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <a
+                  href={previewImageUrl}
+                  download
+                  className="px-3 py-1.5 bg-primary hover:bg-blue-600 font-semibold text-xs rounded-xl flex items-center gap-1.5"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download</span>
+                </a>
+                <button
+                  onClick={() => setPreviewImageUrl(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewImageUrl}
+              alt="Payment screenshot uploaded by the customer"
+              className="w-full rounded-2xl border border-slate-800"
+            />
+            <p className="text-[11px] text-slate-500">
+              Cross-check the amount and timestamp against your UPI statement — a screenshot on its
+              own is not proof of a credit.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* EMBEDDED PDF RESUME PREVIEW MODAL */}
       {previewPdfUrl && (
@@ -597,6 +691,7 @@ export default function AdminBookingsPage() {
                       onChange={(e) => setStatusInput(e.target.value as BookingStatus)}
                       className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-semibold text-xs focus:border-primary focus:outline-none"
                     >
+                      <option value="Booking Confirmed">Booking Confirmed (Paid)</option>
                       <option value="Pending Admin Approval">Pending Admin Approval</option>
                       <option value="Approved">Approved (Lock Slot)</option>
                       <option value="Price Assigned">Price Assigned</option>
@@ -842,6 +937,50 @@ export default function AdminBookingsPage() {
                   <option value="Pending Admin Approval">Pending Admin Approval</option>
                   <option value="Confirmed">Confirmed</option>
                 </select>
+              </div>
+
+              {/* PAYMENT RECORD — admin bookings bypass the online checkout,
+                  so the payment has to be stated explicitly. */}
+              <div className="p-3.5 bg-slate-800/60 border border-slate-700 rounded-2xl space-y-3">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={adminMarkPaid}
+                    onChange={(e) => setAdminMarkPaid(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-emerald-500"
+                  />
+                  <span>
+                    <span className="block font-bold text-white">Payment already received</span>
+                    <span className="block text-[11px] text-slate-400 mt-0.5">
+                      Records this booking as paid and verified by you. Leave unchecked to save it
+                      as Payment Pending.
+                    </span>
+                  </span>
+                </label>
+
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Payment Screenshot (optional)
+                  </label>
+                  <label
+                    className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-dashed cursor-pointer transition-colors ${
+                      adminProofFile
+                        ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                    }`}
+                  >
+                    <ImageIcon className="w-4 h-4 shrink-0" />
+                    <span className="truncate">
+                      {adminProofFile ? adminProofFile.name : 'Attach the screenshot you received'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => setAdminProofFile(e.target.files?.[0] || null)}
+                    />
+                  </label>
+                </div>
               </div>
 
               <div>

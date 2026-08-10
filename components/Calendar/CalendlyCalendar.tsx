@@ -35,10 +35,15 @@ import {
   ShieldCheck,
   FileText,
   DollarSign,
+  Lock,
+  CreditCard,
 } from 'lucide-react';
-import { ISlot, IBooking, IPackage } from '@/types';
+import { ISlot, IBooking, IPackage, IPaymentSessionPublic } from '@/types';
 import { formatPrice } from '@/lib/utils';
 import { useToast } from '@/components/Notification/ToastContext';
+import { PaymentStep } from '@/components/Payment/PaymentStep';
+
+const SESSION_STORAGE_KEY = 'morexpert_payment_session';
 
 function CalendlyCalendarContent() {
   const toast = useToast();
@@ -62,6 +67,11 @@ function CalendlyCalendarContent() {
   const [phone, setPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState<IBooking | null>(null);
+
+  // Payment state — the slot is only held here; the booking is created server-side
+  // once the payment has been verified.
+  const [paymentSession, setPaymentSession] = useState<IPaymentSessionPublic | null>(null);
+  const [resumingSession, setResumingSession] = useState(true);
 
   // All Bookings for calendar summary & fully-booked calculation
   const [allBookings, setAllBookings] = useState<IBooking[]>([]);
@@ -111,6 +121,59 @@ function CalendlyCalendarContent() {
       }
     };
   }, [dateKey]);
+
+  // Resume an in-flight payment after a refresh. The browser only ever restores a
+  // session id — the server decides what state that session is really in.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resume() {
+      try {
+        const storedId =
+          typeof window !== 'undefined' ? window.localStorage.getItem(SESSION_STORAGE_KEY) : null;
+        if (!storedId) return;
+
+        const res = await fetch(`/api/payments/session/${storedId}`, { cache: 'no-store' });
+        const json = await res.json();
+        if (cancelled) return;
+
+        if (!res.ok || !json.success) {
+          window.localStorage.removeItem(SESSION_STORAGE_KEY);
+          return;
+        }
+
+        const restored: IPaymentSessionPublic = json.data;
+
+        if (restored.status === 'Booking Confirmed' && restored.booking) {
+          window.localStorage.removeItem(SESSION_STORAGE_KEY);
+          setBookingSuccess(restored.booking);
+          return;
+        }
+        if (
+          restored.status === 'Payment Failed' ||
+          restored.status === 'Payment Expired' ||
+          restored.status === 'Payment Cancelled'
+        ) {
+          window.localStorage.removeItem(SESSION_STORAGE_KEY);
+          return;
+        }
+
+        setPaymentSession(restored);
+        setName(restored.name);
+        setPhone(restored.phone);
+        setSelectedDate(new Date(`${restored.date}T00:00:00`));
+      } catch {
+        /* nothing to resume */
+      } finally {
+        if (!cancelled) setResumingSession(false);
+      }
+    }
+
+    resume();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Fetch Packages
   useEffect(() => {
@@ -194,7 +257,22 @@ Thank you.`;
     return `https://wa.me/${phoneTarget}?text=${encodeURIComponent(messageText)}`;
   };
 
-  const handleBookingSubmit = async (e: React.FormEvent) => {
+  const refreshSlots = async () => {
+    if (!dateKey) return;
+    try {
+      const slotsRes = await fetch(`/api/slots?date=${dateKey}`, { cache: 'no-store' });
+      const slotsJson = await slotsRes.json();
+      if (slotsJson.success) setAvailableSlots(slotsJson.data);
+    } catch (err) {
+      console.error('Error refreshing slots:', err);
+    }
+  };
+
+  /**
+   * Step 4 → 5. This only places a temporary hold on the slot and returns the
+   * payment instructions. No booking exists until the payment is verified.
+   */
+  const handleStartPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPackage) {
       toast.warning('Please select a review package.', 'Package Required');
@@ -204,7 +282,7 @@ Thank you.`;
       toast.warning('Please select a date and slot.', 'Slot Required');
       return;
     }
-    if (!name || !phone) {
+    if (!name.trim() || !phone.trim()) {
       toast.warning('Please enter both Full Name and Phone Number.', 'Missing Information');
       return;
     }
@@ -214,67 +292,71 @@ Thank you.`;
       const selectedSlotObj = availableSlots.find((s) => s.time === selectedSlot);
       const slotDisplayName = selectedSlotObj?.displayName || selectedSlot;
 
-      const payload = {
-        name: name.trim(),
-        phone: phone.trim(),
-        date: dateKey,
-        slot: slotDisplayName,
-        packageName: selectedPackage.name,
-        packagePrice: selectedPackage.price,
-      };
-
-      const res = await fetch('/api/bookings', {
+      const res = await fetch('/api/payments/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+          date: dateKey,
+          slot: slotDisplayName,
+          slotTime: selectedSlot,
+          packageId: selectedPackage._id,
+          packageName: selectedPackage.name,
+        }),
       });
 
       const contentType = res.headers.get('content-type') || '';
-      let json: any = {};
-
-      if (contentType.includes('application/json')) {
-        json = await res.json();
-      } else {
-        const errText = await res.text();
-        console.error('Non-JSON response received from /api/bookings:', errText);
-        throw new Error('Server error processing booking. Please check your connection and try again.');
+      if (!contentType.includes('application/json')) {
+        throw new Error('Server error starting the payment. Please try again.');
       }
 
+      const json = await res.json();
       if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Failed to submit booking.');
+        if (json.code === 'slot_held' || json.code === 'slot_taken') await refreshSlots();
+        throw new Error(json.error || 'Could not start the payment.');
       }
 
-      const createdBooking: IBooking = json.booking;
-      setBookingSuccess(createdBooking);
-
-      // Trigger Confetti!
-      confetti({
-        particleCount: 120,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-
-      // Refresh slots immediately so the slot card turns RED displaying Booked By info
-      const slotsRes = await fetch(`/api/slots?date=${dateKey}`);
-      const slotsJson = await slotsRes.json();
-      if (slotsJson.success) {
-        setAvailableSlots(slotsJson.data);
+      const session: IPaymentSessionPublic = json.data;
+      setPaymentSession(session);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(SESSION_STORAGE_KEY, session.sessionId);
       }
+      await refreshSlots();
 
-      // Automatically redirect user to WhatsApp with prefilled message
-      const waUrl = constructWhatsAppUrl(createdBooking);
-      setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          window.location.href = waUrl;
-        }
-      }, 1500);
-
-      toast.success('Slot booked! Redirecting to WhatsApp...', 'Booking Saved');
+      toast.info('Slot held. Complete the payment to confirm your booking.', 'Payment Required');
     } catch (err: any) {
-      toast.error(err.message || 'Could not complete booking.', 'Booking Error');
+      toast.error(err.message || 'Could not start the payment.', 'Payment Error');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handlePaymentConfirmed = async (booking: IBooking) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+    setPaymentSession(null);
+    setBookingSuccess(booking);
+
+    confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+
+    await refreshSlots();
+    await fetchAllBookings();
+
+    toast.success(
+      `Payment verified. Booking ${booking.bookingId} confirmed.`,
+      'Booking Confirmed'
+    );
+  };
+
+  const handlePaymentReleased = async () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+    setPaymentSession(null);
+    setSelectedSlot(null);
+    await refreshSlots();
   };
 
   return (
@@ -288,9 +370,11 @@ Thank you.`;
             </div>
 
             <div>
-              <h3 className="text-2xl font-extrabold text-slate-900">Slot Booked Successfully!</h3>
+              <h3 className="text-2xl font-extrabold text-slate-900">Payment Verified — Slot Confirmed!</h3>
               <p className="text-sm text-slate-500 mt-1">
-                Your booking details have been saved in MongoDB. Redirecting to WhatsApp for final confirmation...
+                Booking{' '}
+                <span className="font-mono font-bold text-slate-700">{bookingSuccess.bookingId}</span>{' '}
+                is confirmed and your slot is locked.
               </p>
             </div>
 
@@ -314,10 +398,23 @@ Thank you.`;
                   {bookingSuccess.date} ({bookingSuccess.slot})
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between border-b border-slate-200 pb-2">
                 <span className="text-slate-500 font-medium">Package Price</span>
                 <span className="font-black text-primary text-base">
                   {formatPrice(bookingSuccess.price || bookingSuccess.packagePrice)}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-slate-200 pb-2">
+                <span className="text-slate-500 font-medium">Payment Status</span>
+                <span className="font-bold text-emerald-600 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  {bookingSuccess.paymentStatus || 'Payment Verified'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Booking Reference</span>
+                <span className="font-mono font-bold text-slate-900">
+                  {bookingSuccess.upiReference || bookingSuccess.bookingId}
                 </span>
               </div>
             </div>
@@ -340,6 +437,10 @@ Thank you.`;
                   setSelectedSlot(null);
                   setName('');
                   setPhone('');
+                  if (typeof window !== 'undefined') {
+                    window.localStorage.removeItem(SESSION_STORAGE_KEY);
+                  }
+                  refreshSlots();
                 }}
                 className="text-xs font-semibold text-slate-500 hover:text-slate-800"
               >
@@ -366,33 +467,35 @@ Thank you.`;
 
             <div className="space-y-3 text-xs text-slate-200 pt-1">
               <div className="flex items-start gap-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-sm">
-                <FileText className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
-                <span className="font-semibold leading-relaxed">
-                  Share the details (Old Resume or fill the shared format)
-                </span>
-              </div>
-
-              <div className="flex items-start gap-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-sm">
                 <PackageIcon className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <span className="font-semibold leading-relaxed">Choose a package</span>
               </div>
 
               <div className="flex items-start gap-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-sm">
-                <DollarSign className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <CalendarIcon className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                 <span className="font-semibold leading-relaxed">
-                  Complete the payment and share the payment screenshot
+                  Select your preferred date and slot
                 </span>
               </div>
 
               <div className="flex items-start gap-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-sm">
-                <CalendarIcon className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-                <span className="font-semibold leading-relaxed">Select your preferred date</span>
+                <FileText className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+                <span className="font-semibold leading-relaxed">
+                  Enter your name and phone number
+                </span>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 bg-slate-800/80 rounded-2xl border border-slate-700/80 shadow-sm">
+                <DollarSign className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <span className="font-semibold leading-relaxed">
+                  Scan the UPI QR and complete the payment
+                </span>
               </div>
 
               <div className="flex items-start gap-3 p-3.5 bg-emerald-500/10 rounded-2xl border border-emerald-500/30 text-emerald-300 shadow-sm font-bold">
-                <Clock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <span className="leading-relaxed">
-                  Your resume will be delivered before 11:59 PM
+                  Upload the payment screenshot — your slot is confirmed instantly
                 </span>
               </div>
             </div>
@@ -416,6 +519,13 @@ Thank you.`;
             </div>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                Payment In Progress
+              </span>
+              <span className="text-amber-400 font-semibold">Pulsing</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
                 Fully Booked Date
               </span>
@@ -424,8 +534,22 @@ Thank you.`;
           </div>
         </div>
 
-        {/* RIGHT ENGINE: 4 SECTIONS */}
+        {/* RIGHT ENGINE: 5 SECTIONS */}
         <div className="lg:col-span-8 p-6 sm:p-8 bg-white/80 space-y-8 relative">
+          {/* PAYMENT IN PROGRESS — selection is frozen so the held slot cannot drift */}
+          {paymentSession && (
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+              <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">
+                Your selection is locked while the payment for{' '}
+                <strong>
+                  {paymentSession.date} · {paymentSession.slot}
+                </strong>{' '}
+                is in progress. Cancel the payment below to choose a different slot.
+              </span>
+            </div>
+          )}
+
           {/* SECTION 1: SELECT PACKAGE */}
           <div className="space-y-4">
             <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -445,8 +569,9 @@ Thank you.`;
                     <button
                       key={pkg._id}
                       type="button"
+                      disabled={Boolean(paymentSession)}
                       onClick={() => setSelectedPackage(pkg)}
-                      className={`p-5 sm:p-6 min-h-[125px] sm:min-h-[135px] rounded-2xl border text-left transition-all relative flex flex-col justify-between group hover:-translate-y-0.5 hover:shadow-md ${
+                      className={`p-5 sm:p-6 min-h-[125px] sm:min-h-[135px] rounded-2xl border text-left transition-all relative flex flex-col justify-between group hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${
                         isSelected
                           ? 'bg-slate-900 text-white border-primary shadow-xl ring-2 ring-primary/40'
                           : 'bg-white hover:border-slate-300 border-slate-200 text-slate-800 shadow-sm'
@@ -541,7 +666,7 @@ Thank you.`;
                 return (
                   <div key={idx} className="relative">
                     <button
-                      disabled={!isCurrentMonth}
+                      disabled={!isCurrentMonth || Boolean(paymentSession)}
                       onClick={() => {
                         setSelectedDate(day);
                         setSelectedSlot(null);
@@ -744,6 +869,28 @@ Thank you.`;
                           );
                         }
 
+                        if (s.onHold && !s.bookedInfo) {
+                          // Another customer is paying for this slot right now. The hold
+                          // auto-releases if their payment is not verified in time.
+                          const isMine = paymentSession?.slot === displayName && paymentSession?.date === s.date;
+                          return (
+                            <div
+                              key={s.time}
+                              className="p-5 sm:p-6 min-h-[110px] sm:min-h-[120px] rounded-2xl border border-amber-300 bg-amber-50/90 text-left shadow-sm flex flex-col justify-between"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-extrabold text-amber-900">{displayName}</span>
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                              </div>
+                              <p className="text-[11px] font-bold text-amber-800 mt-2 leading-snug">
+                                {isMine
+                                  ? 'Held for you — complete the payment below'
+                                  : 'Reserved — payment in progress'}
+                              </p>
+                            </div>
+                          );
+                        }
+
                         if (isBooked && !s.bookedInfo) {
                           return (
                             <div
@@ -779,8 +926,9 @@ Thank you.`;
                           <button
                             key={s.time}
                             type="button"
+                            disabled={Boolean(paymentSession)}
                             onClick={() => setSelectedSlot(s.time)}
-                            className={`p-5 sm:p-6 min-h-[110px] sm:min-h-[120px] rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group hover:-translate-y-0.5 ${
+                            className={`p-5 sm:p-6 min-h-[110px] sm:min-h-[120px] rounded-2xl border text-left transition-all flex flex-col justify-between gap-3 group hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${
                               isSelected
                                 ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 font-bold scale-[1.02]'
                                 : 'bg-emerald-50/40 hover:border-emerald-400 border-emerald-200 text-slate-900 shadow-sm'
@@ -818,9 +966,9 @@ Thank you.`;
           )}
 
           {/* SECTION 4: ENTER YOUR DETAILS (Full Name & Phone Number ONLY) */}
-          {selectedSlot && (
+          {selectedSlot && !paymentSession && !resumingSession && (
             <form
-              onSubmit={handleBookingSubmit}
+              onSubmit={handleStartPayment}
               className="pt-6 border-t border-slate-200/80 space-y-5 animate-in fade-in duration-300"
             >
               <h3 className="text-xl font-bold text-slate-900 flex items-center justify-between flex-wrap gap-2">
@@ -869,24 +1017,43 @@ Thank you.`;
                 </div>
               </div>
 
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-sky-50 border border-sky-200 text-[11px] text-sky-900 leading-relaxed">
+                <ShieldCheck className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                <span>
+                  Your slot is <strong>not booked yet</strong>. The next step holds it for a few
+                  minutes while you pay — it is confirmed the moment you upload your payment
+                  screenshot.
+                </span>
+              </div>
+
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-4 px-6 text-base font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-600 rounded-2xl shadow-xl shadow-emerald-600/25 hover:shadow-2xl transition-all flex items-center justify-center gap-2"
+                className="w-full py-4 px-6 text-base font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-600 rounded-2xl shadow-xl shadow-emerald-600/25 hover:shadow-2xl transition-all flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Saving Booking & Redirecting...</span>
+                    <span>Reserving your slot...</span>
                   </>
                 ) : (
                   <>
-                    <MessageSquare className="w-5 h-5 fill-white text-emerald-600" />
-                    <span>Confirm Booking & Open WhatsApp</span>
+                    <CreditCard className="w-5 h-5" />
+                    <span>Proceed to Payment · {formatPrice(selectedPackage?.price)}</span>
                   </>
                 )}
               </button>
             </form>
+          )}
+
+          {/* SECTION 5: PAYMENT — booking is created only after verification */}
+          {paymentSession && (
+            <PaymentStep
+              session={paymentSession}
+              onUpdate={setPaymentSession}
+              onConfirmed={handlePaymentConfirmed}
+              onReleased={handlePaymentReleased}
+            />
           )}
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { IBooking, ISlot, ISettings, IAdmin, IPackage } from '@/types';
+import { IBooking, ISlot, ISettings, IAdmin, IPackage, IPaymentSession } from '@/types';
 
 // Global memory cache for fallback store during DB setup
 declare global {
@@ -8,6 +8,7 @@ declare global {
     bookings: IBooking[];
     slots: ISlot[];
     packages: IPackage[];
+    paymentSessions: IPaymentSession[];
     settings: ISettings;
   } | undefined;
 }
@@ -17,6 +18,7 @@ if (!global.fallbackMemoryStore) {
     admins: [],
     bookings: [],
     slots: [],
+    paymentSessions: [],
     packages: [
       {
         _id: 'pkg-1',
@@ -57,6 +59,10 @@ if (!global.fallbackMemoryStore) {
       holidayDates: [],
       workingDays: [0, 1, 2, 3, 4, 5, 6],
       theme: 'default',
+      upiId: '',
+      upiPayeeName: '',
+      upiQrImageUrl: '',
+      holdMinutes: 10,
     },
   };
 }

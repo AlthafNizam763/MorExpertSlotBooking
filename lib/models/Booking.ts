@@ -23,6 +23,20 @@ export interface IBookingDocument extends Document {
   bookingSource?: 'User' | 'Admin';
   timeline: Array<{ title: string; timestamp: Date; actor: string; notes?: string }>;
   createdAt: Date;
+
+  // Payment trail
+  paymentStatus?: string;
+  paymentSessionId?: string;
+  paymentProvider?: string;
+  transactionRef?: string;
+  providerPaymentId?: string;
+  amountPaid?: number | null;
+  paidAt?: Date | null;
+  paymentVerifiedAt?: Date | null;
+  paymentVerifiedBy?: string;
+  verificationMode?: string;
+  paymentProofUrl?: string;
+  upiReference?: string;
 }
 
 const TimelineEventSchema = new Schema(
@@ -67,6 +81,20 @@ const BookingSchema: Schema = new Schema(
     otpVerified: { type: Boolean, default: false },
     bookingSource: { type: String, enum: ['User', 'Admin'], default: 'User' },
     timeline: { type: [TimelineEventSchema], default: [] },
+
+    // Payment trail — every user booking is created from a verified payment session
+    paymentStatus: { type: String, default: '' },
+    paymentSessionId: { type: String, default: '', index: true },
+    paymentProvider: { type: String, default: '' },
+    transactionRef: { type: String, default: '' },
+    providerPaymentId: { type: String, default: '' },
+    amountPaid: { type: Number, default: null },
+    paidAt: { type: Date, default: null },
+    paymentVerifiedAt: { type: Date, default: null },
+    paymentVerifiedBy: { type: String, default: '' },
+    verificationMode: { type: String, default: '' },
+    paymentProofUrl: { type: String, default: '' },
+    upiReference: { type: String, default: '' },
   },
   { timestamps: true }
 );

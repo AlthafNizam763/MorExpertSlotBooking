@@ -10,6 +10,8 @@ import {
   LogOut,
   Package,
   Menu,
+  Settings,
+  Wallet,
   X,
 } from 'lucide-react';
 import { MorExpertLogo } from '@/components/Common/MorExpertLogo';
@@ -22,8 +24,10 @@ export const AdminSidebar: React.FC = () => {
   const menuItems = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Bookings', href: '/admin/bookings', icon: CalendarCheck },
+    { name: 'Payments & Verification', href: '/admin/payments', icon: Wallet },
     { name: 'Package Management', href: '/admin/packages', icon: Package },
     { name: 'Calendar & Drag-and-Drop Slot Management', href: '/admin/calendar', icon: CalendarDays },
+    { name: 'Payment Settings', href: '/admin/settings', icon: Settings },
   ];
 
   const handleLogout = async () => {

@@ -10,7 +10,21 @@ export type BookingStatus =
   | 'Pending'
   | 'Price Assigned'
   | 'Confirmed'
+  | 'Booking Confirmed'
   | 'Resume Under Review';
+
+export type PaymentStatus =
+  | 'Payment Pending'
+  | 'Payment Submitted'
+  | 'Payment Verified'
+  | 'Payment Failed'
+  | 'Payment Expired'
+  | 'Payment Cancelled'
+  | 'Booking Confirmed';
+
+export type PaymentProvider = 'razorpay' | 'upi-manual';
+
+export type VerificationMode = 'gateway' | 'webhook' | 'admin' | 'screenshot';
 
 export type AdminRole = 'super_admin' | 'staff_admin' | 'admin';
 
@@ -45,6 +59,86 @@ export interface IBooking {
   bookingSource?: 'User' | 'Admin';
   timeline?: ITimelineEvent[];
   createdAt?: string;
+
+  // Payment trail — populated when the booking is created from a verified payment
+  paymentStatus?: PaymentStatus;
+  paymentSessionId?: string;
+  paymentProvider?: PaymentProvider;
+  transactionRef?: string;
+  providerPaymentId?: string;
+  amountPaid?: number | null;
+  paidAt?: string | null;
+  paymentVerifiedAt?: string | null;
+  paymentVerifiedBy?: string;
+  verificationMode?: VerificationMode;
+  paymentProofUrl?: string;
+  upiReference?: string;
+}
+
+export interface IPaymentSession {
+  _id?: string;
+  sessionId: string;
+  bookingId?: string;
+  name: string;
+  phone: string;
+  email?: string;
+  notes?: string;
+  packageId?: string;
+  packageName: string;
+  packagePrice: number;
+  amount: number;
+  date: string;
+  slot: string;
+  slotTime?: string;
+  status: PaymentStatus;
+  provider: PaymentProvider;
+  providerRefId?: string;
+  providerQrImage?: string;
+  providerPaymentId?: string;
+  /** Gateway-issued reference only — customers never enter one. */
+  transactionRef?: string;
+  paymentProofUrl?: string;
+  proofHash?: string;
+  amountPaid?: number | null;
+  paidAt?: string | null;
+  verifiedAt?: string | null;
+  verifiedBy?: string;
+  verificationMode?: VerificationMode;
+  failureReason?: string;
+  upiReference: string;
+  holdActive: boolean;
+  holdExpiresAt: string;
+  timeline?: ITimelineEvent[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Payload returned to the browser while a payment is in progress. */
+export interface IPaymentSessionPublic {
+  sessionId: string;
+  status: PaymentStatus;
+  provider: PaymentProvider;
+  amount: number;
+  packageName: string;
+  date: string;
+  slot: string;
+  name: string;
+  phone: string;
+  upiReference: string;
+  upiId?: string;
+  payeeName?: string;
+  upiLink?: string;
+  qrImage?: string;
+  qrIsStatic?: boolean;
+  holdExpiresAt: string;
+  secondsRemaining: number;
+  /** True when the customer must upload a payment screenshot (no gateway configured). */
+  requiresManualSubmission: boolean;
+  paymentProofUrl?: string;
+  transactionRef?: string;
+  failureReason?: string;
+  bookingId?: string;
+  booking?: IBooking | null;
 }
 
 export interface ISlot {
@@ -56,8 +150,11 @@ export interface ISlot {
   booked: number;
   remaining?: number;
   isAvailable: boolean;
-  statusColor?: 'green' | 'yellow' | 'red';
+  statusColor?: 'green' | 'yellow' | 'red' | 'orange';
   statusText?: string;
+  /** True while another customer is paying for this slot (temporary hold). */
+  onHold?: boolean;
+  holdExpiresAt?: string | null;
   bookedInfo?: {
     name: string;
     packageName: string;
@@ -84,6 +181,14 @@ export interface ISettings {
   holidayDates: string[];
   workingDays: number[];
   theme?: string;
+
+  // Payment configuration
+  upiId?: string;
+  upiPayeeName?: string;
+  /** Uploaded static UPI QR image (used when no gateway is configured). */
+  upiQrImageUrl?: string;
+  /** Minutes a slot stays on hold while the customer pays. */
+  holdMinutes?: number;
 }
 
 export interface IAdmin {

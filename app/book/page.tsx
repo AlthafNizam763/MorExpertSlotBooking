@@ -16,7 +16,8 @@ export default function BookPage() {
             Book Your Slot
           </h1>
           <p className="text-slate-600 mt-2 text-sm sm:text-base max-w-xl mx-auto">
-            Select an available date, pick your slot time, and upload your PDF resume to reserve your session instantly.
+            Pick your package, date and slot, then pay by UPI. Your slot is held while you pay and
+            confirmed the moment you upload your payment screenshot.
           </p>
         </div>
 

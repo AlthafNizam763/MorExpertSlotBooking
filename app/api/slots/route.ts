@@ -4,6 +4,10 @@ import Slot from '@/lib/models/Slot';
 import Booking from '@/lib/models/Booking';
 import { fallbackStore } from '@/lib/fallbackStore';
 import { getAuthenticatedAdmin } from '@/lib/auth';
+import { bookingOccupiesSlot, OCCUPYING_BOOKING_FILTER } from '@/lib/statuses';
+import { getActiveHoldsForDate } from '@/lib/payments/sessions';
+
+export const dynamic = 'force-dynamic';
 
 const DEFAULT_TIMINGS = ['09:00 AM', '11:00 AM', '03:00 PM'];
 
@@ -20,21 +24,25 @@ export async function GET(req: Request) {
       let existingBookings: any[] = [];
       if (conn) {
         try {
-          existingBookings = await Booking.find({ date, status: { $ne: 'Cancelled' } }).lean();
+          existingBookings = await Booking.find({ date, ...OCCUPYING_BOOKING_FILTER }).lean();
         } catch (e) {
           existingBookings = fallbackStore.bookings.filter(
-            (b) => b.date === date && b.status !== 'Cancelled'
+            (b) => b.date === date && bookingOccupiesSlot(b.status)
           );
         }
       } else {
         existingBookings = fallbackStore.bookings.filter(
-          (b) => b.date === date && b.status !== 'Cancelled'
+          (b) => b.date === date && bookingOccupiesSlot(b.status)
         );
       }
 
       existingBookings.forEach((b) => {
         bookedCountsBySlot[b.slot] = (bookedCountsBySlot[b.slot] || 0) + 1;
       });
+
+      // Slots currently held by a customer who is mid-payment are unavailable too,
+      // but they are shown as "on hold" rather than "booked" — they auto-release.
+      const activeHolds = await getActiveHoldsForDate(date);
 
       // Fetch custom slots override from DB or store
       let dbSlots: any[] = [];
@@ -55,14 +63,23 @@ export async function GET(req: Request) {
         const booked = bookedCountsBySlot[time] || bookedCountsBySlot[displayName] || 0;
         const capacity = custom?.capacity !== undefined ? custom.capacity : 1;
         const isEnabledInDb = custom ? custom.isAvailable : true;
-        const remaining = Math.max(0, capacity - booked);
+
+        const hold = activeHolds.find((h) => h.slot === displayName || h.slot === time || h.slotTime === time);
+        const heldCount = hold ? 1 : 0;
+        const remaining = Math.max(0, capacity - booked - heldCount);
 
         const slotBookable = isEnabledInDb && remaining > 0;
-        
-        let statusColor: 'green' | 'yellow' | 'red' = 'green';
+
+        let statusColor: 'green' | 'yellow' | 'red' | 'orange' = 'green';
         let statusText = '';
 
-        if (!slotBookable || remaining <= 0) {
+        if (booked > 0 && remaining <= 0) {
+          statusColor = 'red';
+          statusText = 'Fully Booked';
+        } else if (hold && remaining <= 0) {
+          statusColor = 'orange';
+          statusText = 'Reserved — payment in progress';
+        } else if (!slotBookable || remaining <= 0) {
           statusColor = 'red';
           statusText = 'Fully Booked';
         } else if (remaining === 1) {
@@ -97,6 +114,8 @@ export async function GET(req: Request) {
           isAvailable: slotBookable,
           statusColor,
           statusText,
+          onHold: Boolean(hold),
+          holdExpiresAt: hold ? hold.holdExpiresAt : null,
           bookedInfo,
         };
       });

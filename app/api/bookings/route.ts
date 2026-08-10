@@ -1,23 +1,16 @@
 import { NextResponse } from 'next/server';
-import path from 'path';
-import fs from 'fs/promises';
-import { existsSync, mkdirSync } from 'fs';
 import connectToDatabase from '@/lib/mongodb';
 import Booking from '@/lib/models/Booking';
 import Slot from '@/lib/models/Slot';
 import { generateBookingId } from '@/lib/utils';
 import { fallbackStore } from '@/lib/fallbackStore';
+import { getAuthenticatedAdmin } from '@/lib/auth';
+import { saveUploadedFile } from '@/lib/uploads';
+import { bookingOccupiesSlot, OCCUPYING_BOOKING_FILTER, PAYMENT_STATUS } from '@/lib/statuses';
+import { getActiveHoldsForDate } from '@/lib/payments/sessions';
 import { IBooking } from '@/types';
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-try {
-  if (!existsSync(uploadsDir)) {
-    mkdirSync(uploadsDir, { recursive: true });
-  }
-} catch (e) {
-  console.warn('Uploads directory creation warning:', e);
-}
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
@@ -51,8 +44,28 @@ export async function GET(req: Request) {
   }
 }
 
+/**
+ * Admin-only booking creation.
+ *
+ * Customer bookings are NEVER created here — they are created by
+ * lib/payments/sessions.ts once a payment has been verified. Posting to this
+ * endpoint without an admin session is rejected, which is what stops a page
+ * refresh, a replayed request or a hand-crafted call from reserving a slot.
+ */
 export async function POST(req: Request) {
   try {
+    const admin = await getAuthenticatedAdmin();
+    if (!admin) {
+      return NextResponse.json(
+        {
+          error:
+            'Bookings are created only after a verified payment. Start a checkout at /api/payments/session.',
+          code: 'payment_required',
+        },
+        { status: 403 }
+      );
+    }
+
     let name = '';
     let email = '';
     let phone = '';
@@ -62,61 +75,62 @@ export async function POST(req: Request) {
     let packageName = 'Standard Package';
     let packagePrice: number | null = 500;
     let resumeUrl = '';
-    let bookingSource: 'User' | 'Admin' = 'User';
-    let status: any = 'Pending Admin Approval';
+    let status: any = 'Approved';
+    let markPaid = false;
+    let paymentProofUrl = '';
 
     const contentType = req.headers.get('content-type') || '';
 
     if (contentType.includes('application/json')) {
-      try {
-        const json = await req.json();
-        name = json.name || '';
-        email = json.email || '';
-        phone = json.phone || '';
-        date = json.date || '';
-        slot = json.slot || '';
-        notes = json.notes || '';
-        packageName = json.packageName || 'Standard Package';
-        packagePrice = json.packagePrice !== undefined ? Number(json.packagePrice) : 500;
-        if (json.bookingSource === 'Admin') bookingSource = 'Admin';
-        if (json.status) status = json.status;
-        else if (bookingSource === 'Admin') status = 'Approved';
-      } catch (err) {
-        console.warn('Error parsing JSON payload:', err);
-      }
+      const json = await req.json();
+      name = json.name || '';
+      email = json.email || '';
+      phone = json.phone || '';
+      date = json.date || '';
+      slot = json.slot || '';
+      notes = json.notes || '';
+      packageName = json.packageName || 'Standard Package';
+      packagePrice = json.packagePrice !== undefined ? Number(json.packagePrice) : 500;
+      if (json.status) status = json.status;
+      markPaid = Boolean(json.markPaid);
     } else {
-      try {
-        const formData = await req.formData();
-        name = (formData.get('name') as string) || '';
-        email = (formData.get('email') as string) || '';
-        phone = (formData.get('phone') as string) || '';
-        date = (formData.get('date') as string) || '';
-        slot = (formData.get('slot') as string) || '';
-        notes = (formData.get('notes') as string) || '';
-        packageName = (formData.get('packageName') as string) || 'Standard Package';
-        const pStr = formData.get('packagePrice') as string;
-        packagePrice = pStr ? Number(pStr) : 500;
-        const srcStr = formData.get('bookingSource') as string;
-        if (srcStr === 'Admin') bookingSource = 'Admin';
-        const stStr = formData.get('status') as string;
-        if (stStr) status = stStr;
-        else if (bookingSource === 'Admin') status = 'Approved';
+      const formData = await req.formData();
+      name = (formData.get('name') as string) || '';
+      email = (formData.get('email') as string) || '';
+      phone = (formData.get('phone') as string) || '';
+      date = (formData.get('date') as string) || '';
+      slot = (formData.get('slot') as string) || '';
+      notes = (formData.get('notes') as string) || '';
+      packageName = (formData.get('packageName') as string) || 'Standard Package';
+      const pStr = formData.get('packagePrice') as string;
+      packagePrice = pStr ? Number(pStr) : 500;
+      const stStr = formData.get('status') as string;
+      if (stStr) status = stStr;
+      markPaid = formData.get('markPaid') === 'true';
 
-        const resumeFile = formData.get('resume') as File | null;
-        if (resumeFile && typeof resumeFile === 'object' && resumeFile.name) {
-          if (resumeFile.type === 'application/pdf' || resumeFile.name.endsWith('.pdf')) {
-            if (resumeFile.size <= 10 * 1024 * 1024) {
-              const bytes = await resumeFile.arrayBuffer();
-              const buffer = Buffer.from(bytes);
-              const sanitizedFileName = `${Date.now()}_${resumeFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-              const filePath = path.join(uploadsDir, sanitizedFileName);
-              await fs.writeFile(filePath, buffer);
-              resumeUrl = `/uploads/${sanitizedFileName}`;
-            }
-          }
+      const proofFile = formData.get('paymentProof') as File | null;
+      if (proofFile && typeof proofFile === 'object' && proofFile.name) {
+        try {
+          const savedProof = await saveUploadedFile(proofFile, { prefix: 'payment' });
+          paymentProofUrl = savedProof?.url || '';
+        } catch (e) {
+          return NextResponse.json({ error: (e as Error).message }, { status: 400 });
         }
-      } catch (err) {
-        console.warn('Error parsing FormData payload:', err);
+      }
+
+      const resumeFile = formData.get('resume') as File | null;
+      if (resumeFile && typeof resumeFile === 'object' && resumeFile.name) {
+        try {
+          const savedResume = await saveUploadedFile(resumeFile, {
+            prefix: 'resume',
+            maxBytes: 10 * 1024 * 1024,
+            allowedMimes: ['application/pdf'],
+            allowedExtensions: ['.pdf'],
+          });
+          resumeUrl = savedResume?.url || '';
+        } catch (e) {
+          console.warn('Resume upload rejected:', e);
+        }
       }
     }
 
@@ -129,22 +143,22 @@ export async function POST(req: Request) {
 
     const conn = await connectToDatabase();
 
-    // Prevent Duplicate Bookings for the same slot on the same date
+    // Refuse to overwrite a confirmed booking.
     if (conn) {
       try {
         const existingBooking = await Booking.findOne({
           date,
           slot,
-          status: { $ne: 'Cancelled' },
-        });
+          ...OCCUPYING_BOOKING_FILTER,
+        }).lean();
 
         if (existingBooking) {
           return NextResponse.json(
             {
-              error: `Slot "${slot}" on ${date} is already booked by ${existingBooking.name}. Please select an available slot.`,
-              bookedBy: existingBooking.name,
+              error: `Slot "${slot}" on ${date} is already booked by ${(existingBooking as any).name}.`,
+              bookedBy: (existingBooking as any).name,
             },
-            { status: 400 }
+            { status: 409 }
           );
         }
       } catch (e) {
@@ -152,20 +166,34 @@ export async function POST(req: Request) {
       }
     } else {
       const existingFallback = fallbackStore.bookings.find(
-        (b) => b.date === date && b.slot === slot && b.status !== 'Cancelled'
+        (b) => b.date === date && b.slot === slot && bookingOccupiesSlot(b.status)
       );
       if (existingFallback) {
         return NextResponse.json(
           {
-            error: `Slot "${slot}" on ${date} is already booked by ${existingFallback.name}. Please select an available slot.`,
+            error: `Slot "${slot}" on ${date} is already booked by ${existingFallback.name}.`,
             bookedBy: existingFallback.name,
           },
-          { status: 400 }
+          { status: 409 }
         );
       }
     }
 
+    // Refuse to steal a slot a customer is actively paying for.
+    const holds = await getActiveHoldsForDate(date);
+    const conflictingHold = holds.find((h) => h.slot === slot || h.slotTime === slot);
+    if (conflictingHold) {
+      return NextResponse.json(
+        {
+          error: `Slot "${slot}" on ${date} is currently held by ${conflictingHold.name} while they complete payment (${conflictingHold.status}). Wait for the hold to clear or resolve it from the Payments page.`,
+          code: 'slot_held',
+        },
+        { status: 409 }
+      );
+    }
+
     const bookingId = generateBookingId();
+    const nowIso = new Date().toISOString();
 
     const newBookingData: IBooking = {
       bookingId,
@@ -176,22 +204,37 @@ export async function POST(req: Request) {
       notes: notes.trim(),
       date,
       slot,
-      status: status || 'Pending Admin Approval',
+      status: status || 'Approved',
       price: packagePrice,
       packageName,
       packagePrice,
-      bookingSource,
-      remarks: bookingSource === 'Admin' ? 'Created directly from Admin Panel' : '',
-      createdAt: new Date().toISOString(),
+      bookingSource: 'Admin',
+      remarks: 'Created directly from Admin Panel',
+      paymentStatus: markPaid ? PAYMENT_STATUS.VERIFIED : PAYMENT_STATUS.PENDING,
+      paymentProvider: 'upi-manual',
+      paymentProofUrl,
+      amountPaid: markPaid ? packagePrice : null,
+      paidAt: markPaid ? nowIso : null,
+      paymentVerifiedAt: markPaid ? nowIso : null,
+      paymentVerifiedBy: markPaid ? admin.name : '',
+      verificationMode: markPaid ? 'admin' : undefined,
+      createdAt: nowIso,
+      timeline: [
+        {
+          title: 'Booking created from Admin Panel',
+          timestamp: nowIso,
+          actor: admin.name,
+          notes: markPaid ? 'Marked as paid by admin.' : 'Payment not recorded.',
+        },
+      ],
     };
 
     let createdBooking: any = null;
 
     if (conn) {
       try {
-        createdBooking = await Booking.create(newBookingData);
+        createdBooking = await Booking.create(newBookingData as any);
 
-        // Update slot booked count
         await Slot.findOneAndUpdate(
           { date, time: slot },
           { $inc: { booked: 1 } },
