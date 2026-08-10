@@ -138,10 +138,11 @@ export default function AdminSettingsPage() {
                   </p>
                 ) : (
                   <p className="leading-relaxed">
-                    Customers pay to your UPI ID and upload a screenshot of the payment. Because no
-                    gateway API can prove a plain UPI transfer, an admin confirms each credit on
-                    the Payments page before the booking is created. Add RAZORPAY_KEY_ID and
-                    RAZORPAY_KEY_SECRET to your environment to enable fully automatic verification.
+                    Customers pay to your UPI ID and then enter the Transaction ID of that payment
+                    (or just its last 4 digits). Because no gateway API can prove a plain UPI
+                    transfer, reconcile those references against your UPI statement on the Payments
+                    page. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to your environment to enable
+                    fully automatic verification.
                   </p>
                 )}
               </div>
@@ -257,7 +258,7 @@ export default function AdminSettingsPage() {
                     className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-bold focus:border-primary focus:outline-none"
                   />
                   <p className="text-[10px] text-slate-500 mt-1">
-                    How long a customer has to pay and upload their screenshot before the slot is
+                    How long a customer has to pay and enter their Transaction ID before the slot is
                     released for someone else.
                   </p>
                 </div>
@@ -265,9 +266,10 @@ export default function AdminSettingsPage() {
                 <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700 text-xs">
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <span className="text-slate-300 leading-relaxed">
-                    Customers upload a payment screenshot and the booking confirms immediately — no
-                    admin step. The screenshot is stored with the booking, and the same image can
-                    never be used for two bookings.
+                    Customers enter their Transaction ID — or just its last 4 digits — and the
+                    booking confirms immediately, with no admin step. A complete Transaction ID can
+                    never be used for two bookings; a last-4 reference is too short to be unique, so
+                    match those against your statement on amount and time.
                   </span>
                 </div>
               </div>

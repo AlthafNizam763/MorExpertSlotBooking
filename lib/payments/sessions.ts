@@ -18,6 +18,13 @@ import {
   PaymentStatus,
   VerificationMode,
 } from '@/types';
+import {
+  TRANSACTION_ID_ERROR,
+  TRANSACTION_LAST4_ERROR,
+  isValidTransactionId,
+  isValidTransactionLast4,
+  normalizeTransactionRef,
+} from '@/lib/validation';
 import { getPaymentConfig, isPaymentConfigured, PaymentConfig } from './config';
 import { buildUpiUri, generateQrDataUrl, generateSessionId, generateUpiReference } from './upi';
 import {
@@ -218,13 +225,10 @@ async function updateSession(
       return plain(doc);
     } catch (e: any) {
       if (e?.code === 11000) {
-        const duplicatedProof = String(e?.keyPattern ? Object.keys(e.keyPattern)[0] : '') === 'proofHash';
         throw new PaymentFlowError(
-          duplicatedProof
-            ? 'This screenshot has already been submitted for another booking. Upload the screenshot of your own payment.'
-            : 'This payment has already been used for another booking.',
+          'This Transaction ID has already been used for another booking.',
           409,
-          duplicatedProof ? 'duplicate_proof' : 'duplicate_transaction'
+          'duplicate_transaction'
         );
       }
       console.warn('[payments] session update failed:', e);
@@ -533,8 +537,8 @@ export async function toPublicSession(
     holdExpiresAt: session.holdExpiresAt,
     secondsRemaining,
     requiresManualSubmission: session.provider !== 'razorpay',
-    paymentProofUrl: session.paymentProofUrl || undefined,
     transactionRef: session.transactionRef,
+    transactionRefLast4: session.transactionRefLast4 || undefined,
     failureReason: session.failureReason,
     bookingId: session.bookingId,
     booking,
@@ -623,35 +627,20 @@ async function transactionRefAlreadyUsed(ref: string, exceptSessionId: string): 
   );
 }
 
-/** The same screenshot may not be submitted against two different bookings. */
-async function proofAlreadyUsed(hash: string, exceptSessionId: string): Promise<boolean> {
-  if (!hash) return false;
-
-  if (await useDb()) {
-    try {
-      const existing = await PaymentSession.findOne({
-        proofHash: hash,
-        sessionId: { $ne: exceptSessionId },
-      }).lean();
-      return Boolean(existing);
-    } catch (e) {
-      console.warn('[payments] duplicate proof check failed:', e);
-    }
-  }
-
-  return fallbackStore.paymentSessions.some(
-    (s) => s.proofHash === hash && s.sessionId !== exceptSessionId
-  );
-}
-
 /**
- * The customer uploads a screenshot of the completed UPI payment. That screenshot
- * is the only thing they submit — there is no reference number to type and no
- * admin step: a successful upload confirms the booking and locks the slot.
+ * The customer confirms their UPI payment by giving us the transaction id from
+ * their payment app — either the complete reference, or just its last 4
+ * characters. Submitting it confirms the booking and locks the slot.
+ *
+ * Only a *complete* reference is checked for reuse. Last-4 is not: with 10,000
+ * possible values, two unrelated customers sharing one is ordinary rather than
+ * suspicious, so rejecting on it would lock out legitimate bookings. That makes
+ * last-4 the weaker of the two — the admin reconciles it against the UPI
+ * statement, exactly as they did with screenshots.
  */
-export async function submitPaymentProof(
+export async function submitTransactionReference(
   sessionId: string,
-  input: { proofUrl: string; proofHash?: string }
+  input: { transactionId?: string; transactionLast4?: string }
 ): Promise<{ session: IPaymentSession; booking: IBooking }> {
   const session = await findSession(sessionId);
   if (!session) throw new PaymentFlowError('Payment session not found.', 404, 'not_found');
@@ -673,7 +662,7 @@ export async function submitPaymentProof(
     await releaseHold(
       sessionId,
       PAYMENT_STATUS.EXPIRED,
-      'Hold expired before the payment screenshot was uploaded.'
+      'Hold expired before the transaction details were submitted.'
     );
     throw new PaymentFlowError(
       'Your payment window expired and the slot was released. Please start again.',
@@ -682,42 +671,56 @@ export async function submitPaymentProof(
     );
   }
 
-  if (!input.proofUrl) {
+  const fullRef = normalizeTransactionRef(input.transactionId);
+  const last4 = normalizeTransactionRef(input.transactionLast4);
+
+  if (!fullRef && !last4) {
     throw new PaymentFlowError(
-      'Upload a screenshot of your completed payment to continue.',
+      'Enter your Transaction ID, or the last 4 digits of it, to confirm your payment.',
       400,
-      'proof_required'
+      'transaction_required'
     );
   }
-  if (input.proofHash && (await proofAlreadyUsed(input.proofHash, sessionId))) {
+  if (fullRef && !isValidTransactionId(fullRef)) {
+    throw new PaymentFlowError(TRANSACTION_ID_ERROR, 400, 'invalid_transaction_id');
+  }
+  if (!fullRef && !isValidTransactionLast4(last4)) {
+    throw new PaymentFlowError(TRANSACTION_LAST4_ERROR, 400, 'invalid_transaction_last4');
+  }
+
+  if (fullRef && (await transactionRefAlreadyUsed(fullRef, sessionId))) {
     throw new PaymentFlowError(
-      'This screenshot has already been used for another booking. Upload the screenshot of your own payment.',
+      'This Transaction ID has already been used for another booking. Check the reference in your UPI app.',
       409,
-      'duplicate_proof'
+      'duplicate_transaction'
     );
   }
 
-  // Attach the proof first so the booking created below carries it.
-  const withProof = await updateSession(
+  // Record what the customer gave us first, so the booking created below carries it.
+  const withRef = await updateSession(
     sessionId,
-    {
-      paymentProofUrl: input.proofUrl,
-      ...(input.proofHash ? { proofHash: input.proofHash } : {}),
-    },
-    timelineEvent('Payment screenshot uploaded', session.name),
+    fullRef ? { transactionRef: fullRef } : { transactionRefLast4: last4 },
+    timelineEvent(
+      'Transaction details submitted',
+      session.name,
+      fullRef ? `Transaction ID ${fullRef}` : `Last 4 digits of Transaction ID: ${last4}`
+    ),
     { status: { $in: [PAYMENT_STATUS.PENDING, PAYMENT_STATUS.SUBMITTED] } }
   );
 
-  if (!withProof) {
+  if (!withRef) {
     throw new PaymentFlowError('Payment session could not be updated.', 409, 'session_closed');
   }
 
   return confirmSessionPayment(sessionId, {
-    amountPaid: withProof.amount,
+    ...(fullRef ? { transactionRef: fullRef } : {}),
+    amountPaid: withRef.amount,
     paidAt: new Date(),
-    verifiedBy: withProof.name,
-    verificationMode: 'screenshot',
-    notes: 'Confirmed automatically on payment screenshot upload.',
+    verifiedBy: withRef.name,
+    verificationMode: 'transaction-id',
+    notes: fullRef
+      ? `Confirmed on the customer's Transaction ID (${fullRef}).`
+      : `Confirmed on the last 4 digits of the customer's Transaction ID (${last4}).`,
   });
 }
 
@@ -863,14 +866,21 @@ async function createBookingFromSession(session: IPaymentSession): Promise<IBook
     packagePrice: session.packagePrice,
     bookingSource: 'User',
     remarks:
-      session.verificationMode === 'screenshot'
-        ? 'Confirmed automatically on payment screenshot upload.'
+      session.verificationMode === 'transaction-id'
+        ? `Confirmed on the transaction details supplied by the customer${
+            session.transactionRef
+              ? ` (Transaction ID ${session.transactionRef}).`
+              : session.transactionRefLast4
+              ? ` (Transaction ID ending ${session.transactionRefLast4}).`
+              : '.'
+          }`
         : `Paid online — verified via ${session.verificationMode || 'payment'}.`,
     otpVerified: false,
     paymentStatus: PAYMENT_STATUS.VERIFIED,
     paymentSessionId: session.sessionId,
     paymentProvider: session.provider,
     transactionRef: session.transactionRef || '',
+    transactionRefLast4: session.transactionRefLast4 || '',
     providerPaymentId: session.providerPaymentId || '',
     amountPaid: session.amountPaid ?? session.amount,
     paidAt: session.paidAt || nowIso,
@@ -885,12 +895,11 @@ async function createBookingFromSession(session: IPaymentSession): Promise<IBook
         title: 'Booking confirmed',
         timestamp: nowIso,
         actor: session.verifiedBy || 'System',
-        notes:
-          session.verificationMode === 'screenshot'
-            ? 'Payment screenshot uploaded by the customer.'
-            : session.transactionRef
-            ? `Payment reference ${session.transactionRef}`
-            : '',
+        notes: session.transactionRef
+          ? `Transaction ID ${session.transactionRef}`
+          : session.transactionRefLast4
+          ? `Transaction ID ending ${session.transactionRefLast4}`
+          : '',
       },
     ],
   };

@@ -26,7 +26,7 @@ export async function GET() {
 
     // Build CSV Header
     let csv =
-      'Booking ID,Customer Name,Email,Phone,Booking Date,Slot,Package,Package Price (INR),Booking Status,Payment Status,Amount Paid (INR),Payment Screenshot,Gateway Reference,Payment Verified By,Paid At,Created At\n';
+      'Booking ID,Customer Name,Email,Phone,Booking Date,Slot,Package,Package Price (INR),Booking Status,Payment Status,Amount Paid (INR),Transaction ID,Transaction ID (last 4),Payment Verified By,Paid At,Created At\n';
 
     const cell = (value: any) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
@@ -43,8 +43,8 @@ export async function GET() {
         cell(b.status),
         cell(b.paymentStatus || 'Not Recorded'),
         cell(b.amountPaid ?? ''),
-        cell(b.paymentProofUrl || ''),
         cell(b.transactionRef || ''),
+        cell(b.transactionRefLast4 || ''),
         cell(b.paymentVerifiedBy || ''),
         cell(b.paidAt || ''),
         cell(b.createdAt),

@@ -73,3 +73,44 @@ export function isValidName(value: unknown): boolean {
     .replace(/ {2,}/g, ' ');
   return name.length >= 2 && NAME_PATTERN.test(name);
 }
+
+/* ------------------------------------------------------------------ *
+ * UPI transaction reference
+ *
+ * A customer confirms their payment by giving us either the complete
+ * transaction / UTR id from their UPI app, or just its last 4 digits. The two
+ * are deliberately kept apart everywhere downstream: a full reference is unique
+ * enough to be a real key, whereas 4 digits have only 10,000 possible values and
+ * would collide between unrelated customers well before the hundredth booking.
+ * ------------------------------------------------------------------ */
+
+export const TRANSACTION_LAST4_LENGTH = 4;
+
+/** UPI UTRs are 12 digits; PhonePe/Paytm style references are longer and alphanumeric. */
+export const TRANSACTION_ID_PATTERN = /^[A-Z0-9]{6,32}$/;
+export const TRANSACTION_LAST4_PATTERN = /^[A-Z0-9]{4}$/;
+
+export const TRANSACTION_ID_ERROR =
+  'Enter the complete Transaction ID from your UPI app (6–32 letters or digits).';
+export const TRANSACTION_LAST4_ERROR =
+  'Enter the last 4 characters of your Transaction ID.';
+
+/** Strips spaces and punctuation, uppercases — what the reference inputs write back. */
+export function sanitizeTransactionInput(value: unknown, maxLength = 32): string {
+  return String(value ?? '')
+    .replace(/[^A-Za-z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, maxLength);
+}
+
+export function normalizeTransactionRef(value: unknown): string {
+  return sanitizeTransactionInput(value, 32);
+}
+
+export function isValidTransactionId(value: unknown): boolean {
+  return TRANSACTION_ID_PATTERN.test(String(value ?? '').trim().toUpperCase());
+}
+
+export function isValidTransactionLast4(value: unknown): boolean {
+  return TRANSACTION_LAST4_PATTERN.test(String(value ?? '').trim().toUpperCase());
+}

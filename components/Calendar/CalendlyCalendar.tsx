@@ -439,10 +439,20 @@ Thank you.`;
                   {bookingSuccess.paymentStatus || 'Payment Verified'}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between border-b border-slate-200 pb-2">
                 <span className="text-slate-500 font-medium">Booking Reference</span>
                 <span className="font-mono font-bold text-slate-900">
                   {bookingSuccess.upiReference || bookingSuccess.bookingId}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Transaction ID</span>
+                <span className="font-mono font-bold text-slate-900">
+                  {bookingSuccess.transactionRef
+                    ? bookingSuccess.transactionRef
+                    : bookingSuccess.transactionRefLast4
+                    ? `•••• ${bookingSuccess.transactionRefLast4}`
+                    : '—'}
                 </span>
               </div>
             </div>
@@ -523,7 +533,8 @@ Thank you.`;
               <div className="flex items-start gap-3 p-3.5 bg-emerald-500/10 rounded-2xl border border-emerald-500/30 text-emerald-300 shadow-sm font-bold">
                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <span className="leading-relaxed">
-                  Upload the payment screenshot — your slot is confirmed instantly
+                  Enter your Transaction ID (or its last 4 digits) — your slot is confirmed
+                  instantly
                 </span>
               </div>
             </div>
@@ -1059,8 +1070,7 @@ Thank you.`;
                 <ShieldCheck className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
                 <span>
                   Your slot is <strong>not booked yet</strong>. The next step holds it for a few
-                  minutes while you pay — it is confirmed the moment you upload your payment
-                  screenshot.
+                  minutes while you pay — it is confirmed the moment you enter your Transaction ID.
                 </span>
               </div>
 

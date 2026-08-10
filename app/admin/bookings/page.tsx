@@ -43,6 +43,7 @@ import {
   normalizeName,
   sanitizeNameInput,
   sanitizePhoneInput,
+  sanitizeTransactionInput,
 } from '@/lib/validation';
 
 export default function AdminBookingsPage() {
@@ -67,7 +68,7 @@ export default function AdminBookingsPage() {
   const [adminStatus, setAdminStatus] = useState<BookingStatus>('Approved');
   const [adminNotes, setAdminNotes] = useState('');
   const [adminMarkPaid, setAdminMarkPaid] = useState(true);
-  const [adminProofFile, setAdminProofFile] = useState<File | null>(null);
+  const [adminTransactionRef, setAdminTransactionRef] = useState('');
   const [creatingBooking, setCreatingBooking] = useState(false);
 
   // Edit / Price Assignment / Reschedule Modal State
@@ -162,22 +163,23 @@ export default function AdminBookingsPage() {
 
     setCreatingBooking(true);
     try {
-      // Sent as FormData so the admin can attach the payment screenshot they
-      // received offline — the same proof customers upload themselves.
-      const form = new FormData();
-      form.append('name', cleanName);
-      form.append('phone', cleanPhone);
-      form.append('email', adminEmail.trim() || 'adminbooking@morexpert.com');
-      form.append('packageName', adminPackageName);
-      form.append('packagePrice', String(adminPackagePrice));
-      form.append('date', adminDate);
-      form.append('slot', adminSlot);
-      form.append('status', adminStatus);
-      form.append('notes', adminNotes.trim());
-      form.append('markPaid', String(adminMarkPaid));
-      if (adminProofFile) form.append('paymentProof', adminProofFile);
-
-      const res = await fetch('/api/bookings', { method: 'POST', body: form });
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cleanName,
+          phone: cleanPhone,
+          email: adminEmail.trim() || 'adminbooking@morexpert.com',
+          packageName: adminPackageName,
+          packagePrice: adminPackagePrice,
+          date: adminDate,
+          slot: adminSlot,
+          status: adminStatus,
+          notes: adminNotes.trim(),
+          markPaid: adminMarkPaid,
+          transactionRef: adminTransactionRef,
+        }),
+      });
 
       const json = await res.json();
       if (!res.ok || !json.success) {
@@ -191,7 +193,7 @@ export default function AdminBookingsPage() {
       setAdminPhone('');
       setAdminEmail('');
       setAdminNotes('');
-      setAdminProofFile(null);
+      setAdminTransactionRef('');
       fetchBookings();
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('bookingUpdated'));
@@ -407,7 +409,7 @@ export default function AdminBookingsPage() {
                     <th className="py-4 px-4">Booking Date & Slot</th>
                     <th className="py-4 px-4">Package Price</th>
                     <th className="py-4 px-4">Payment Status</th>
-                    <th className="py-4 px-4">Payment Screenshot</th>
+                    <th className="py-4 px-4">Transaction ID</th>
                     <th className="py-4 px-4">Booking Status</th>
                     <th className="py-4 px-4">Source</th>
                     <th className="py-4 px-4 text-right">Approval & Actions</th>
@@ -462,31 +464,35 @@ export default function AdminBookingsPage() {
                             )}
                           </td>
                           <td className="py-4 px-4">
-                            {b.paymentProofUrl ? (
+                            {b.transactionRef ? (
+                              <span className="font-mono font-bold text-[11px] text-emerald-400 tracking-wide break-all">
+                                {b.transactionRef}
+                              </span>
+                            ) : b.transactionRefLast4 ? (
+                              <span
+                                className="font-mono font-bold text-[11px] text-amber-400 tracking-wide"
+                                title="The customer supplied only the last 4 digits — match this against your UPI statement on amount and time."
+                              >
+                                •••• {b.transactionRefLast4}
+                                <span className="block text-[9px] font-sans font-semibold text-amber-500/80 tracking-normal">
+                                  last 4 only
+                                </span>
+                              </span>
+                            ) : b.paymentProofUrl ? (
                               <button
                                 onClick={() => setPreviewImageUrl(b.paymentProofUrl!)}
-                                className="flex items-center gap-2.5 group"
-                                title="Open the payment screenshot"
+                                className="text-[11px] text-slate-400 hover:text-primary font-bold flex items-center gap-1"
+                                title="Legacy booking — confirmed by screenshot before Transaction IDs replaced them"
                               >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={b.paymentProofUrl}
-                                  alt={`Payment screenshot from ${b.name}`}
-                                  className="w-12 h-12 object-cover rounded-lg border border-slate-700 group-hover:border-primary transition-colors shrink-0"
-                                />
-                                <span className="text-[11px] text-primary group-hover:text-blue-400 font-bold flex items-center gap-1">
-                                  <Eye className="w-3.5 h-3.5" /> View
-                                </span>
+                                <Eye className="w-3.5 h-3.5" /> Legacy screenshot
                               </button>
                             ) : (
                               <span className="text-slate-600 italic text-[11px]">
-                                No screenshot
+                                Not submitted
                               </span>
                             )}
                             <div className="text-[10px] text-slate-500 capitalize mt-1">
-                              {b.verificationMode
-                                ? `verified via ${b.verificationMode}`
-                                : b.transactionRef || ''}
+                              {b.verificationMode ? `verified via ${b.verificationMode}` : ''}
                             </div>
                           </td>
                           <td className="py-4 px-4">
@@ -548,14 +554,15 @@ export default function AdminBookingsPage() {
         </div>
       </main>
 
-      {/* PAYMENT SCREENSHOT PREVIEW MODAL */}
+      {/* LEGACY SCREENSHOT PREVIEW MODAL — only reachable for bookings taken
+          before Transaction IDs replaced screenshots. Nothing writes these now. */}
       {previewImageUrl && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-2xl w-full max-h-[90vh] overflow-auto shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-bold text-sm text-primary">
                 <ImageIcon className="w-5 h-5" />
-                <span>Payment Screenshot</span>
+                <span>Legacy Payment Screenshot</span>
               </div>
               <div className="flex items-center gap-3">
                 <a
@@ -994,26 +1001,21 @@ export default function AdminBookingsPage() {
 
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">
-                    Payment Screenshot (optional)
+                    Transaction ID (optional)
                   </label>
-                  <label
-                    className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-dashed cursor-pointer transition-colors ${
-                      adminProofFile
-                        ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
-                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
-                    }`}
-                  >
-                    <ImageIcon className="w-4 h-4 shrink-0" />
-                    <span className="truncate">
-                      {adminProofFile ? adminProofFile.name : 'Attach the screenshot you received'}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                      onChange={(e) => setAdminProofFile(e.target.files?.[0] || null)}
-                    />
-                  </label>
+                  <input
+                    type="text"
+                    value={adminTransactionRef}
+                    onChange={(e) => setAdminTransactionRef(sanitizeTransactionInput(e.target.value))}
+                    placeholder="Full ID, or its last 4 digits"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={32}
+                    className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono tracking-wide focus:border-primary focus:outline-none"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    From your UPI statement. Four characters are stored as a last-4 reference.
+                  </p>
                 </div>
               </div>
 

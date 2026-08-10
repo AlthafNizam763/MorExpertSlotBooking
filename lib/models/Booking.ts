@@ -29,6 +29,7 @@ export interface IBookingDocument extends Document {
   paymentSessionId?: string;
   paymentProvider?: string;
   transactionRef?: string;
+  transactionRefLast4?: string;
   providerPaymentId?: string;
   amountPaid?: number | null;
   paidAt?: Date | null;
@@ -86,7 +87,10 @@ const BookingSchema: Schema = new Schema(
     paymentStatus: { type: String, default: '' },
     paymentSessionId: { type: String, default: '', index: true },
     paymentProvider: { type: String, default: '' },
+    // Full transaction id, or — when the customer gave only the last 4
+    // characters — transactionRefLast4 instead. Exactly one is populated.
     transactionRef: { type: String, default: '' },
+    transactionRefLast4: { type: String, default: '' },
     providerPaymentId: { type: String, default: '' },
     amountPaid: { type: Number, default: null },
     paidAt: { type: Date, default: null },

@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Read-only payment log for the admin panel. Bookings confirm themselves when the
- * customer uploads their screenshot, so there is nothing to action here — this
- * exists so an admin can look at the screenshots and payment history.
+ * customer submits their transaction details, so there is nothing to action here —
+ * this exists so an admin can reconcile those references and the payment history.
  */
 export async function GET(req: Request) {
   try {

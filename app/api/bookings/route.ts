@@ -11,9 +11,13 @@ import { getActiveHoldsForDate } from '@/lib/payments/sessions';
 import {
   NAME_ERROR,
   PHONE_ERROR,
+  TRANSACTION_ID_ERROR,
   isValidName,
   isValidPhone,
+  isValidTransactionId,
+  isValidTransactionLast4,
   normalizeName,
+  normalizeTransactionRef,
 } from '@/lib/validation';
 import { IBooking } from '@/types';
 
@@ -84,7 +88,7 @@ export async function POST(req: Request) {
     let resumeUrl = '';
     let status: any = 'Approved';
     let markPaid = false;
-    let paymentProofUrl = '';
+    let rawTransactionRef = '';
 
     const contentType = req.headers.get('content-type') || '';
 
@@ -100,6 +104,7 @@ export async function POST(req: Request) {
       packagePrice = json.packagePrice !== undefined ? Number(json.packagePrice) : 500;
       if (json.status) status = json.status;
       markPaid = Boolean(json.markPaid);
+      rawTransactionRef = json.transactionRef || '';
     } else {
       const formData = await req.formData();
       name = (formData.get('name') as string) || '';
@@ -114,16 +119,7 @@ export async function POST(req: Request) {
       const stStr = formData.get('status') as string;
       if (stStr) status = stStr;
       markPaid = formData.get('markPaid') === 'true';
-
-      const proofFile = formData.get('paymentProof') as File | null;
-      if (proofFile && typeof proofFile === 'object' && proofFile.name) {
-        try {
-          const savedProof = await saveUploadedFile(proofFile, { prefix: 'payment' });
-          paymentProofUrl = savedProof?.url || '';
-        } catch (e) {
-          return NextResponse.json({ error: (e as Error).message }, { status: 400 });
-        }
-      }
+      rawTransactionRef = (formData.get('transactionRef') as string) || '';
 
       const resumeFile = formData.get('resume') as File | null;
       if (resumeFile && typeof resumeFile === 'object' && resumeFile.name) {
@@ -161,6 +157,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: PHONE_ERROR }, { status: 400 });
     }
     name = normalizeName(name);
+
+    // Optional, and admin-entered — a bare 4 characters is recorded as a last-4
+    // reference so it never lands in the unique transactionRef index.
+    const ref = normalizeTransactionRef(rawTransactionRef);
+    let transactionRef = '';
+    let transactionRefLast4 = '';
+    if (ref) {
+      if (isValidTransactionId(ref)) {
+        transactionRef = ref;
+      } else if (isValidTransactionLast4(ref)) {
+        transactionRefLast4 = ref;
+      } else {
+        return NextResponse.json({ error: TRANSACTION_ID_ERROR }, { status: 400 });
+      }
+    }
 
     const conn = await connectToDatabase();
 
@@ -233,7 +244,8 @@ export async function POST(req: Request) {
       remarks: 'Created directly from Admin Panel',
       paymentStatus: markPaid ? PAYMENT_STATUS.VERIFIED : PAYMENT_STATUS.PENDING,
       paymentProvider: 'upi-manual',
-      paymentProofUrl,
+      transactionRef,
+      transactionRefLast4,
       amountPaid: markPaid ? packagePrice : null,
       paidAt: markPaid ? nowIso : null,
       paymentVerifiedAt: markPaid ? nowIso : null,

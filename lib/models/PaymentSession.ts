@@ -29,6 +29,7 @@ export interface IPaymentSessionDocument extends Document {
   providerQrImage?: string;
   providerPaymentId?: string;
   transactionRef?: string;
+  transactionRefLast4?: string;
   paymentProofUrl?: string;
   proofHash?: string;
   amountPaid?: number | null;
@@ -76,12 +77,17 @@ const PaymentSessionSchema: Schema = new Schema(
     providerRefId: { type: String, default: '' },
     providerQrImage: { type: String, default: '' },
     providerPaymentId: { type: String, default: '' },
-    // Gateway-only. Customers never type a reference — the payment screenshot is
-    // the sole proof they submit. No default keeps the partial index below free
-    // of empty-string collisions.
+    // The complete transaction id: issued by the gateway, or pasted by the
+    // customer. No default keeps the unique partial index below free of
+    // empty-string collisions.
     transactionRef: { type: String },
+    // Set instead of transactionRef when the customer gave only the last 4
+    // characters. Defaults to '' precisely because it must NOT be indexed as
+    // unique — 4 characters repeat across unrelated customers constantly.
+    transactionRefLast4: { type: String, default: '' },
+    // Legacy screenshot fields. Nothing writes these any more; they are kept so
+    // bookings taken before the transaction-id flow still render in the admin.
     paymentProofUrl: { type: String, default: '' },
-    // SHA-256 of the uploaded screenshot; also absent until a proof is uploaded.
     proofHash: { type: String },
     amountPaid: { type: Number, default: null },
     paidAt: { type: Date, default: null },
@@ -110,11 +116,15 @@ PaymentSessionSchema.index(
   { unique: true, partialFilterExpression: { transactionRef: { $type: 'string' } } }
 );
 
-// The same screenshot cannot be submitted for two different bookings.
+// Legacy: retained so the index on existing data stays consistent. Nothing
+// writes proofHash any more.
 PaymentSessionSchema.index(
   { proofHash: 1 },
   { unique: true, partialFilterExpression: { proofHash: { $type: 'string' } } }
 );
+
+// Deliberately non-unique — see the field comment above.
+PaymentSessionSchema.index({ transactionRefLast4: 1 });
 
 // Drop any model compiled from an older revision of this schema (dev hot reload),
 // otherwise newly added fields are silently stripped on save.

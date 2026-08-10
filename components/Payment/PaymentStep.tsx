@@ -6,16 +6,27 @@ import {
   BadgeCheck,
   Clock,
   Copy,
+  Hash,
   Loader2,
   QrCode,
   RefreshCw,
   Smartphone,
-  Upload,
   X,
 } from 'lucide-react';
 import { IBooking, IPaymentSessionPublic } from '@/types';
 import { formatPrice } from '@/lib/utils';
 import { useToast } from '@/components/Notification/ToastContext';
+import {
+  TRANSACTION_ID_ERROR,
+  TRANSACTION_LAST4_ERROR,
+  TRANSACTION_LAST4_LENGTH,
+  isValidTransactionId,
+  isValidTransactionLast4,
+  sanitizeTransactionInput,
+} from '@/lib/validation';
+
+/** Which of the two ways of giving us the reference the customer picked. */
+type RefMode = 'full' | 'last4';
 
 interface PaymentStepProps {
   session: IPaymentSessionPublic;
@@ -39,8 +50,9 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
 }) => {
   const toast = useToast();
   const [secondsLeft, setSecondsLeft] = useState(session.secondsRemaining);
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [refMode, setRefMode] = useState<RefMode>('full');
+  const [transactionId, setTransactionId] = useState('');
+  const [transactionLast4, setTransactionLast4] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [polling, setPolling] = useState(false);
@@ -108,40 +120,49 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
     }
   };
 
-  const handleSelectProof = (file: File | null) => {
-    setProofFile(file);
-    setProofPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return file ? URL.createObjectURL(file) : null;
-    });
-  };
+  const isFullMode = refMode === 'full';
+  const enteredRef = isFullMode ? transactionId : transactionLast4;
+  const refIsValid = isFullMode
+    ? isValidTransactionId(transactionId)
+    : isValidTransactionLast4(transactionLast4);
 
-  useEffect(() => {
-    return () => {
-      if (proofPreview) URL.revokeObjectURL(proofPreview);
-    };
-  }, [proofPreview]);
-
-  const handleSubmitProof = async (e: React.FormEvent) => {
+  const handleSubmitReference = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!proofFile) {
-      toast.warning('Attach a screenshot of your completed payment.', 'Screenshot Required');
+
+    if (!enteredRef) {
+      toast.warning(
+        'Enter your Transaction ID, or just its last 4 digits, to confirm your payment.',
+        'Transaction Details Required'
+      );
+      return;
+    }
+    if (!refIsValid) {
+      toast.warning(
+        isFullMode ? TRANSACTION_ID_ERROR : TRANSACTION_LAST4_ERROR,
+        'Check the Transaction ID'
+      );
       return;
     }
 
     setSubmitting(true);
     try {
-      const form = new FormData();
-      form.append('sessionId', session.sessionId);
-      form.append('paymentProof', proofFile);
-
-      const res = await fetch('/api/payments/submit', { method: 'POST', body: form });
+      const res = await fetch('/api/payments/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: session.sessionId,
+          ...(isFullMode ? { transactionId } : { transactionLast4 }),
+        }),
+      });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || 'Could not submit the screenshot.');
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Could not submit your transaction details.');
+      }
 
-      handleSelectProof(null);
+      setTransactionId('');
+      setTransactionLast4('');
 
-      // The upload itself confirms the booking — go straight to the confirmation.
+      // Submitting confirms the booking — go straight to the confirmation.
       if (json.booking) {
         confirmedRef.current = true;
         onConfirmed(json.booking, json.data);
@@ -149,7 +170,10 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
       }
       onUpdate(json.data);
     } catch (err: any) {
-      toast.error(err.message || 'Could not submit the screenshot.', 'Submission Failed');
+      toast.error(
+        err.message || 'Could not submit your transaction details.',
+        'Submission Failed'
+      );
     } finally {
       setSubmitting(false);
     }
@@ -278,7 +302,7 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
           <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-100">
             Booking reference{' '}
             <span className="font-mono font-bold text-slate-700">{session.upiReference}</span> is
-            already inside the QR — nothing to type.
+            already inside the QR — you only need your Transaction ID afterwards.
           </div>
         </div>
 
@@ -286,78 +310,115 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
         <div className="space-y-4">
           {session.requiresManualSubmission ? (
             <form
-              onSubmit={handleSubmitProof}
+              onSubmit={handleSubmitReference}
               className="p-5 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-4"
             >
               <div className="flex items-start gap-2.5">
                 <BadgeCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                 <div>
                   <p className="font-extrabold text-slate-900 text-sm">
-                    After paying, upload your payment screenshot
+                    After paying, enter your Transaction ID
                   </p>
                   <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                    That is all we need — your booking is confirmed and the slot is locked as soon
-                    as the screenshot uploads.
+                    You can give us <strong>either</strong> the complete Transaction ID{' '}
+                    <strong>or</strong> just its last 4 digits — either one is enough. Your booking
+                    is confirmed and the slot locked as soon as you submit.
                   </p>
                 </div>
               </div>
 
+              {/* OPTION SWITCH */}
+              <div
+                role="radiogroup"
+                aria-label="How to provide your Transaction ID"
+                className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-200/60"
+              >
+                {(
+                  [
+                    { mode: 'full', label: 'Option 1', hint: 'Full Transaction ID' },
+                    { mode: 'last4', label: 'Option 2', hint: 'Last 4 digits' },
+                  ] as Array<{ mode: RefMode; label: string; hint: string }>
+                ).map((opt) => {
+                  const active = refMode === opt.mode;
+                  return (
+                    <button
+                      key={opt.mode}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setRefMode(opt.mode)}
+                      className={`px-3 py-2 rounded-lg text-left transition-all ${
+                        active
+                          ? 'bg-white shadow-sm border border-primary/40'
+                          : 'border border-transparent hover:bg-white/60'
+                      }`}
+                    >
+                      <span
+                        className={`block text-[9px] font-black uppercase tracking-wider ${
+                          active ? 'text-primary' : 'text-slate-500'
+                        }`}
+                      >
+                        {opt.label}
+                      </span>
+                      <span
+                        className={`block text-[11px] font-bold leading-tight ${
+                          active ? 'text-slate-900' : 'text-slate-600'
+                        }`}
+                      >
+                        {opt.hint}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <div>
-                <label className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Payment screenshot *
+                <label
+                  htmlFor="transaction-reference"
+                  className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wider mb-1.5"
+                >
+                  {isFullMode ? 'Transaction ID *' : 'Last 4 digits of Transaction ID *'}
                 </label>
 
-                {proofPreview ? (
-                  <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50 space-y-3">
-                    <div className="flex items-center gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={proofPreview}
-                        alt="Selected payment screenshot"
-                        className="w-16 h-16 object-cover rounded-lg border border-emerald-200 shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-emerald-900 truncate">
-                          {proofFile?.name}
-                        </p>
-                        <p className="text-[10px] text-emerald-700 mt-0.5">
-                          {proofFile ? `${(proofFile.size / 1024).toFixed(0)} KB` : ''} · ready to
-                          submit
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleSelectProof(null)}
-                        className="ml-auto p-1.5 rounded-lg text-emerald-700 hover:bg-emerald-100 shrink-0"
-                        aria-label="Remove selected screenshot"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <label
-                    className={`flex flex-col items-center justify-center gap-1.5 px-4 py-6 rounded-xl border border-dashed border-slate-300 bg-white text-slate-500 transition-colors ${
-                      expired ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-primary hover:text-primary'
-                    }`}
-                  >
-                    <Upload className="w-5 h-5" />
-                    <span className="text-xs font-bold">Tap to upload your payment screenshot</span>
-                    <span className="text-[10px]">PNG, JPG or WebP · max 5 MB</span>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      className="hidden"
-                      disabled={expired}
-                      onChange={(e) => handleSelectProof(e.target.files?.[0] || null)}
-                    />
-                  </label>
-                )}
+                <div className="relative">
+                  <Hash className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                  <input
+                    id="transaction-reference"
+                    key={refMode}
+                    type="text"
+                    required
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    disabled={expired}
+                    inputMode={isFullMode ? 'text' : 'numeric'}
+                    maxLength={isFullMode ? 32 : TRANSACTION_LAST4_LENGTH}
+                    value={isFullMode ? transactionId : transactionLast4}
+                    onChange={(e) => {
+                      const next = sanitizeTransactionInput(
+                        e.target.value,
+                        isFullMode ? 32 : TRANSACTION_LAST4_LENGTH
+                      );
+                      if (isFullMode) setTransactionId(next);
+                      else setTransactionLast4(next);
+                    }}
+                    placeholder={isFullMode ? 'e.g. 412345678901' : 'e.g. 8901'}
+                    className={`w-full pl-10 pr-4 py-3 rounded-xl border bg-white text-sm text-slate-900 font-bold font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 ${
+                      isFullMode ? '' : 'text-center tracking-[0.5em] pl-10'
+                    } border-slate-300`}
+                  />
+                </div>
+
+                <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
+                  {isFullMode
+                    ? 'Open your UPI app, find this payment and copy the Transaction ID (also shown as UTR or Reference No).'
+                    : `Just the last ${TRANSACTION_LAST4_LENGTH} characters of the Transaction ID shown in your UPI app.`}
+                </p>
               </div>
 
               <button
                 type="submit"
-                disabled={submitting || expired || !proofFile}
+                disabled={submitting || expired || !refIsValid}
                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-600 text-white text-sm font-extrabold shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 {submitting ? (
@@ -366,7 +427,7 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
                     <span>Confirming your booking...</span>
                   </>
                 ) : (
-                  <span>Upload screenshot &amp; confirm booking</span>
+                  <span>Submit &amp; confirm booking</span>
                 )}
               </button>
             </form>

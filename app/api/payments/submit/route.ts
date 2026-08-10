@@ -1,54 +1,48 @@
 import { NextResponse } from 'next/server';
-import { saveUploadedFile } from '@/lib/uploads';
-import { PaymentFlowError, submitPaymentProof, toPublicSession } from '@/lib/payments/sessions';
+import { PaymentFlowError, submitTransactionReference, toPublicSession } from '@/lib/payments/sessions';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * The customer uploads the screenshot of their completed UPI payment.
- * A successful upload confirms the booking immediately — the slot is locked,
- * the booking is written to MongoDB and the confirmed details come straight back.
+ * The customer submits the transaction details of their completed UPI payment —
+ * either the complete Transaction ID, or just its last 4 digits. Submitting
+ * confirms the booking immediately: the slot is locked, the booking is written
+ * to MongoDB and the confirmed details come straight back.
  */
 export async function POST(req: Request) {
   try {
     const contentType = req.headers.get('content-type') || '';
-    if (!contentType.includes('multipart/form-data')) {
-      return NextResponse.json(
-        { error: 'Upload the payment screenshot as multipart/form-data.' },
-        { status: 400 }
-      );
-    }
 
-    const form = await req.formData();
-    const sessionId = (form.get('sessionId') as string) || '';
-    const proof = form.get('paymentProof') as File | null;
+    // Accepts JSON, but a form post is read too rather than rejected outright —
+    // there is no file involved either way.
+    let sessionId = '';
+    let transactionId = '';
+    let transactionLast4 = '';
+
+    if (contentType.includes('application/json')) {
+      const body = await req.json();
+      sessionId = String(body.sessionId || '');
+      transactionId = String(body.transactionId || '');
+      transactionLast4 = String(body.transactionLast4 || '');
+    } else {
+      const form = await req.formData();
+      sessionId = String(form.get('sessionId') || '');
+      transactionId = String(form.get('transactionId') || '');
+      transactionLast4 = String(form.get('transactionLast4') || '');
+    }
 
     if (!sessionId) {
       return NextResponse.json({ error: 'Payment session is required.' }, { status: 400 });
     }
-    if (!proof || typeof proof !== 'object' || !proof.name) {
-      return NextResponse.json(
-        { error: 'Upload a screenshot of your completed payment to continue.', code: 'proof_required' },
-        { status: 400 }
-      );
-    }
 
-    const saved = await saveUploadedFile(proof, { prefix: 'payment' });
-    if (!saved) {
-      return NextResponse.json(
-        { error: 'The screenshot could not be read. Please try another image.' },
-        { status: 400 }
-      );
-    }
-
-    const { session, booking } = await submitPaymentProof(sessionId, {
-      proofUrl: saved.url,
-      proofHash: saved.hash,
+    const { session, booking } = await submitTransactionReference(sessionId, {
+      transactionId,
+      transactionLast4,
     });
 
     return NextResponse.json({
       success: true,
-      message: `Payment screenshot received. Booking ${booking.bookingId} is confirmed and your slot is locked.`,
+      message: `Transaction details received. Booking ${booking.bookingId} is confirmed and your slot is locked.`,
       data: await toPublicSession(session),
       booking,
     });
@@ -56,9 +50,9 @@ export async function POST(req: Request) {
     if (error instanceof PaymentFlowError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
     }
-    console.error('[payments] screenshot submission error:', error);
+    console.error('[payments] transaction submission error:', error);
     return NextResponse.json(
-      { error: error.message || 'Could not submit the payment screenshot.' },
+      { error: error.message || 'Could not submit your transaction details.' },
       { status: 500 }
     );
   }

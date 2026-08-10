@@ -24,7 +24,16 @@ export type PaymentStatus =
 
 export type PaymentProvider = 'razorpay' | 'upi-manual';
 
-export type VerificationMode = 'gateway' | 'webhook' | 'admin' | 'screenshot';
+/**
+ * How a payment came to be trusted. 'screenshot' is retained only so bookings
+ * confirmed before the transaction-id flow replaced it still read back correctly.
+ */
+export type VerificationMode =
+  | 'gateway'
+  | 'webhook'
+  | 'admin'
+  | 'transaction-id'
+  | 'screenshot';
 
 export type AdminRole = 'super_admin' | 'staff_admin' | 'admin';
 
@@ -64,13 +73,17 @@ export interface IBooking {
   paymentStatus?: PaymentStatus;
   paymentSessionId?: string;
   paymentProvider?: PaymentProvider;
+  /** Full transaction / UTR id — from the gateway, or pasted by the customer. */
   transactionRef?: string;
+  /** Set instead of transactionRef when the customer gave only the last 4 characters. */
+  transactionRefLast4?: string;
   providerPaymentId?: string;
   amountPaid?: number | null;
   paidAt?: string | null;
   paymentVerifiedAt?: string | null;
   paymentVerifiedBy?: string;
   verificationMode?: VerificationMode;
+  /** Legacy: screenshots are no longer collected, but old bookings still carry one. */
   paymentProofUrl?: string;
   upiReference?: string;
 }
@@ -95,8 +108,18 @@ export interface IPaymentSession {
   providerRefId?: string;
   providerQrImage?: string;
   providerPaymentId?: string;
-  /** Gateway-issued reference only — customers never enter one. */
+  /**
+   * The complete transaction id — issued by the gateway, or pasted by the
+   * customer. Unique across sessions and bookings.
+   */
   transactionRef?: string;
+  /**
+   * Set instead of transactionRef when the customer supplied only the last 4
+   * characters. Deliberately NOT unique — 4 characters collide between
+   * unrelated customers far too often to be treated as a key.
+   */
+  transactionRefLast4?: string;
+  /** Legacy: no longer collected, retained so old sessions still read back. */
   paymentProofUrl?: string;
   proofHash?: string;
   amountPaid?: number | null;
@@ -132,10 +155,13 @@ export interface IPaymentSessionPublic {
   qrIsStatic?: boolean;
   holdExpiresAt: string;
   secondsRemaining: number;
-  /** True when the customer must upload a payment screenshot (no gateway configured). */
+  /**
+   * True when the customer must enter their transaction details by hand
+   * (no gateway configured to confirm the credit automatically).
+   */
   requiresManualSubmission: boolean;
-  paymentProofUrl?: string;
   transactionRef?: string;
+  transactionRefLast4?: string;
   failureReason?: string;
   bookingId?: string;
   booking?: IBooking | null;

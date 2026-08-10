@@ -27,9 +27,9 @@ interface GatewayInfo {
 }
 
 /**
- * Read-only view. Bookings confirm themselves the moment a customer uploads their
- * payment screenshot, so there is nothing to approve here — this page exists so an
- * admin can review the screenshots and the payment history behind each booking.
+ * Read-only view. Bookings confirm themselves the moment a customer submits their
+ * transaction details, so there is nothing to approve here — this page exists so an
+ * admin can reconcile those references against the UPI statement.
  */
 export default function AdminPaymentsPage() {
   const router = useRouter();
@@ -72,7 +72,17 @@ export default function AdminPaymentsPage() {
     const q = search.trim().toLowerCase();
     if (!q) return sessions;
     return sessions.filter((s) =>
-      [s.name, s.phone, s.bookingId, s.upiReference, s.packageName, s.slot, s.date]
+      [
+        s.name,
+        s.phone,
+        s.bookingId,
+        s.upiReference,
+        s.transactionRef,
+        s.transactionRefLast4,
+        s.packageName,
+        s.slot,
+        s.date,
+      ]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q))
     );
@@ -100,8 +110,8 @@ export default function AdminPaymentsPage() {
               Payments
             </h1>
             <p className="text-xs text-slate-400 mt-1">
-              Payment screenshots and history for every checkout. Bookings confirm automatically on
-              upload — no action is needed here.
+              Transaction references and history for every checkout. Bookings confirm automatically
+              on submission — no action is needed here.
             </p>
           </div>
 
@@ -133,13 +143,14 @@ export default function AdminPaymentsPage() {
               ) : (
                 <>
                   <p className="font-bold">
-                    Screenshot mode — UPI QR ({config.upiId || 'not set'})
+                    Transaction ID mode — UPI QR ({config.upiId || 'not set'})
                   </p>
                   <p className="text-sky-200/80 leading-relaxed">
-                    A booking is confirmed as soon as the customer uploads a screenshot, so review
-                    the images below against your UPI statement periodically. Set RAZORPAY_KEY_ID
-                    and RAZORPAY_KEY_SECRET to have each payment confirmed against the gateway
-                    instead.
+                    A booking is confirmed as soon as the customer submits their Transaction ID, so
+                    reconcile the references below against your UPI statement periodically. A
+                    customer may give only the last 4 digits, which is not unique — match those on
+                    amount and time. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to have each
+                    payment confirmed against the gateway instead.
                   </p>
                 </>
               )}
@@ -155,7 +166,7 @@ export default function AdminPaymentsPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name, phone, booking ID, package..."
+              placeholder="Search name, phone, booking ID, transaction ID..."
               className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:border-primary focus:outline-none"
             />
           </div>
@@ -195,7 +206,7 @@ export default function AdminPaymentsPage() {
                     <th className="py-4 px-4">Customer</th>
                     <th className="py-4 px-4">Package &amp; Amount</th>
                     <th className="py-4 px-4">Date &amp; Slot</th>
-                    <th className="py-4 px-4">Payment Screenshot</th>
+                    <th className="py-4 px-4">Transaction ID</th>
                     <th className="py-4 px-4">Status</th>
                     <th className="py-4 px-4">Booking</th>
                     <th className="py-4 px-4">Hold</th>
@@ -220,24 +231,30 @@ export default function AdminPaymentsPage() {
                           <div className="text-accent text-[11px] font-bold">{s.slot}</div>
                         </td>
                         <td className="py-4 px-4">
-                          {s.paymentProofUrl ? (
+                          {s.transactionRef ? (
+                            <span className="font-mono font-bold text-emerald-400 tracking-wide break-all">
+                              {s.transactionRef}
+                            </span>
+                          ) : s.transactionRefLast4 ? (
+                            <span
+                              className="font-mono font-bold text-amber-400 tracking-wide"
+                              title="The customer supplied only the last 4 digits — match this against your UPI statement on amount and time."
+                            >
+                              •••• {s.transactionRefLast4}
+                              <span className="block text-[9px] font-sans font-semibold text-amber-500/80 tracking-normal">
+                                last 4 only
+                              </span>
+                            </span>
+                          ) : s.paymentProofUrl ? (
                             <button
                               onClick={() => setProofUrl(s.paymentProofUrl!)}
-                              className="flex items-center gap-2.5 group"
-                              title="Open the full screenshot"
+                              className="text-[11px] text-slate-400 hover:text-primary font-bold flex items-center gap-1"
+                              title="Legacy booking — confirmed by screenshot before Transaction IDs replaced them"
                             >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={s.paymentProofUrl}
-                                alt={`Payment screenshot from ${s.name}`}
-                                className="w-12 h-12 object-cover rounded-lg border border-slate-700 group-hover:border-primary transition-colors shrink-0"
-                              />
-                              <span className="text-[11px] text-primary group-hover:text-blue-400 font-bold flex items-center gap-1">
-                                <ExternalLink className="w-3 h-3" /> View
-                              </span>
+                              <ExternalLink className="w-3 h-3" /> Legacy screenshot
                             </button>
                           ) : (
-                            <span className="text-slate-500 italic">Not uploaded</span>
+                            <span className="text-slate-500 italic">Not submitted</span>
                           )}
                           <div className="text-[10px] text-slate-500 font-mono mt-1">
                             ref {s.upiReference}
@@ -279,12 +296,13 @@ export default function AdminPaymentsPage() {
         </div>
       </main>
 
-      {/* SCREENSHOT PREVIEW */}
+      {/* LEGACY SCREENSHOT PREVIEW — only reachable for bookings taken before
+          Transaction IDs replaced screenshots. Nothing writes these any more. */}
       {proofUrl && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-2xl w-full max-h-[90vh] overflow-auto shadow-2xl space-y-4">
             <div className="flex items-center justify-between">
-              <p className="font-bold text-sm text-primary">Payment screenshot</p>
+              <p className="font-bold text-sm text-primary">Legacy payment screenshot</p>
               <div className="flex items-center gap-3">
                 <a
                   href={proofUrl}
