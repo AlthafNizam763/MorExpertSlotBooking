@@ -33,6 +33,17 @@ import {
 import { IBooking, BookingStatus, IPackage } from '@/types';
 import { formatPrice, getStatusBadgeClass } from '@/lib/utils';
 import { useToast, useConfirm } from '@/components/Notification/ToastContext';
+import {
+  NAME_ERROR,
+  NAME_PATTERN,
+  PHONE_ERROR,
+  PHONE_LENGTH,
+  isValidName,
+  isValidPhone,
+  normalizeName,
+  sanitizeNameInput,
+  sanitizePhoneInput,
+} from '@/lib/validation';
 
 export default function AdminBookingsPage() {
   const router = useRouter();
@@ -130,18 +141,32 @@ export default function AdminBookingsPage() {
 
   const handleCreateAdminBooking = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminName.trim() || !adminPhone.trim() || !adminDate || !adminSlot) {
+    const cleanName = normalizeName(adminName);
+    const cleanPhone = sanitizePhoneInput(adminPhone);
+
+    if (!cleanName || !cleanPhone || !adminDate || !adminSlot) {
       toast.error('Full Name, Phone Number, Date, and Slot are required.', 'Missing Fields');
       return;
     }
+    if (!isValidName(cleanName)) {
+      toast.error(NAME_ERROR, 'Invalid Name');
+      return;
+    }
+    if (!isValidPhone(cleanPhone)) {
+      toast.error(PHONE_ERROR, 'Invalid Phone Number');
+      return;
+    }
+
+    setAdminName(cleanName);
+    setAdminPhone(cleanPhone);
 
     setCreatingBooking(true);
     try {
       // Sent as FormData so the admin can attach the payment screenshot they
       // received offline — the same proof customers upload themselves.
       const form = new FormData();
-      form.append('name', adminName.trim());
-      form.append('phone', adminPhone.trim());
+      form.append('name', cleanName);
+      form.append('phone', cleanPhone);
       form.append('email', adminEmail.trim() || 'adminbooking@morexpert.com');
       form.append('packageName', adminPackageName);
       form.append('packagePrice', String(adminPackagePrice));
@@ -836,8 +861,12 @@ export default function AdminBookingsPage() {
                   type="text"
                   required
                   value={adminName}
-                  onChange={(e) => setAdminName(e.target.value)}
+                  onChange={(e) => setAdminName(sanitizeNameInput(e.target.value))}
+                  onBlur={() => setAdminName((current) => normalizeName(current))}
                   placeholder="e.g. John Doe"
+                  autoComplete="name"
+                  pattern={NAME_PATTERN.source}
+                  title="Letters and spaces only"
                   className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:border-primary focus:outline-none"
                 />
               </div>
@@ -848,11 +877,16 @@ export default function AdminBookingsPage() {
                     Phone Number *
                   </label>
                   <input
-                    type="text"
+                    type="tel"
                     required
                     value={adminPhone}
-                    onChange={(e) => setAdminPhone(e.target.value)}
-                    placeholder="+91 9876543210"
+                    onChange={(e) => setAdminPhone(sanitizePhoneInput(e.target.value))}
+                    placeholder="9876543210"
+                    autoComplete="tel"
+                    inputMode="numeric"
+                    maxLength={PHONE_LENGTH}
+                    pattern="\d{10}"
+                    title="Enter a 10-digit phone number"
                     className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono focus:border-primary focus:outline-none"
                   />
                 </div>

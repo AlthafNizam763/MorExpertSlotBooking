@@ -40,6 +40,17 @@ import {
 } from 'lucide-react';
 import { ISlot, IBooking, IPackage, IPaymentSessionPublic } from '@/types';
 import { formatPrice } from '@/lib/utils';
+import {
+  NAME_ERROR,
+  NAME_PATTERN,
+  PHONE_ERROR,
+  PHONE_LENGTH,
+  isValidName,
+  isValidPhone,
+  normalizeName,
+  sanitizeNameInput,
+  sanitizePhoneInput,
+} from '@/lib/validation';
 import { useToast } from '@/components/Notification/ToastContext';
 import { PaymentStep } from '@/components/Payment/PaymentStep';
 
@@ -159,8 +170,8 @@ function CalendlyCalendarContent() {
         }
 
         setPaymentSession(restored);
-        setName(restored.name);
-        setPhone(restored.phone);
+        setName(normalizeName(restored.name));
+        setPhone(sanitizePhoneInput(restored.phone));
         setSelectedDate(new Date(`${restored.date}T00:00:00`));
       } catch {
         /* nothing to resume */
@@ -282,10 +293,27 @@ Thank you.`;
       toast.warning('Please select a date and slot.', 'Slot Required');
       return;
     }
-    if (!name.trim() || !phone.trim()) {
+
+    // The inputs already reject anything invalid as it is typed; this re-checks
+    // the final value so a pasted or autofilled entry cannot slip past.
+    const cleanName = normalizeName(name);
+    const cleanPhone = sanitizePhoneInput(phone);
+
+    if (!cleanName || !cleanPhone) {
       toast.warning('Please enter both Full Name and Phone Number.', 'Missing Information');
       return;
     }
+    if (!isValidName(cleanName)) {
+      toast.warning(NAME_ERROR, 'Invalid Name');
+      return;
+    }
+    if (!isValidPhone(cleanPhone)) {
+      toast.warning(PHONE_ERROR, 'Invalid Phone Number');
+      return;
+    }
+
+    setName(cleanName);
+    setPhone(cleanPhone);
 
     setSubmitting(true);
     try {
@@ -296,8 +324,8 @@ Thank you.`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: name.trim(),
-          phone: phone.trim(),
+          name: cleanName,
+          phone: cleanPhone,
           date: dateKey,
           slot: slotDisplayName,
           slotTime: selectedSlot,
@@ -992,8 +1020,13 @@ Thank you.`;
                       type="text"
                       required
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => setName(sanitizeNameInput(e.target.value))}
+                      onBlur={() => setName((current) => normalizeName(current))}
                       placeholder="e.g. John Doe"
+                      autoComplete="name"
+                      inputMode="text"
+                      pattern={NAME_PATTERN.source}
+                      title="Letters and spaces only"
                       className="w-full pl-10 pr-4 py-3 glass-input text-sm text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                   </div>
@@ -1009,8 +1042,13 @@ Thank you.`;
                       type="tel"
                       required
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => setPhone(sanitizePhoneInput(e.target.value))}
                       placeholder="e.g. 9876543210"
+                      autoComplete="tel"
+                      inputMode="numeric"
+                      maxLength={PHONE_LENGTH}
+                      pattern="\d{10}"
+                      title="Enter a 10-digit phone number"
                       className="w-full pl-10 pr-4 py-3 glass-input text-sm text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                   </div>

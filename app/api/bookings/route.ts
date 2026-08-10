@@ -8,6 +8,13 @@ import { getAuthenticatedAdmin } from '@/lib/auth';
 import { saveUploadedFile } from '@/lib/uploads';
 import { bookingOccupiesSlot, OCCUPYING_BOOKING_FILTER, PAYMENT_STATUS } from '@/lib/statuses';
 import { getActiveHoldsForDate } from '@/lib/payments/sessions';
+import {
+  NAME_ERROR,
+  PHONE_ERROR,
+  isValidName,
+  isValidPhone,
+  normalizeName,
+} from '@/lib/validation';
 import { IBooking } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -134,12 +141,26 @@ export async function POST(req: Request) {
       }
     }
 
+    name = name.trim();
+    phone = phone.trim();
+
     if (!name || !phone || !date || !slot) {
       return NextResponse.json(
         { error: 'Required fields (Full Name, Phone Number, Date, Slot) must be provided.' },
         { status: 400 }
       );
     }
+
+    // Same rules the customer checkout enforces — validate the raw value, then
+    // normalise, so an admin cannot store a name or number the public form
+    // would have refused.
+    if (!isValidName(name)) {
+      return NextResponse.json({ error: NAME_ERROR }, { status: 400 });
+    }
+    if (!isValidPhone(phone)) {
+      return NextResponse.json({ error: PHONE_ERROR }, { status: 400 });
+    }
+    name = normalizeName(name);
 
     const conn = await connectToDatabase();
 
@@ -197,9 +218,9 @@ export async function POST(req: Request) {
 
     const newBookingData: IBooking = {
       bookingId,
-      name: name.trim(),
+      name,
       email: email ? email.trim().toLowerCase() : 'adminbooking@morexpert.com',
-      phone: phone.trim(),
+      phone,
       resume: resumeUrl,
       notes: notes.trim(),
       date,

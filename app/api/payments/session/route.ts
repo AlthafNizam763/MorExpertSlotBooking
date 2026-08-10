@@ -3,6 +3,13 @@ import connectToDatabase from '@/lib/mongodb';
 import PackageModel from '@/lib/models/Package';
 import { fallbackStore } from '@/lib/fallbackStore';
 import { createPaymentSession, PaymentFlowError, toPublicSession } from '@/lib/payments/sessions';
+import {
+  NAME_ERROR,
+  PHONE_ERROR,
+  isValidName,
+  isValidPhone,
+  normalizeName,
+} from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +28,10 @@ function clientIp(req: Request): string {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const name = (body.name || '').trim();
-    const phone = (body.phone || '').trim();
+    // Validated against the raw value, then normalised. Doing it the other way
+    // round would repair "John123" into "John" instead of rejecting it.
+    const rawName = (body.name || '').trim();
+    const phone = String(body.phone ?? '').trim();
     const email = (body.email || '').trim();
     const notes = (body.notes || '').trim();
     const date = (body.date || '').trim();
@@ -30,15 +39,21 @@ export async function POST(req: Request) {
     const slotTime = (body.slotTime || '').trim();
     const packageId = (body.packageId || '').trim();
 
-    if (!name || !phone || !date || !slot) {
+    if (!rawName || !phone || !date || !slot) {
       return NextResponse.json(
         { error: 'Full Name, Phone Number, Date and Slot are required.' },
         { status: 400 }
       );
     }
-    if (!/^[0-9+\-\s()]{8,18}$/.test(phone)) {
-      return NextResponse.json({ error: 'Enter a valid phone number.' }, { status: 400 });
+    if (!isValidName(rawName)) {
+      return NextResponse.json({ error: NAME_ERROR }, { status: 400 });
     }
+    if (!isValidPhone(phone)) {
+      return NextResponse.json({ error: PHONE_ERROR }, { status: 400 });
+    }
+
+    const name = normalizeName(rawName);
+
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return NextResponse.json({ error: 'Invalid booking date.' }, { status: 400 });
     }
