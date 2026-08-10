@@ -210,6 +210,22 @@ export interface IActivityLog {
   timestamp: string;
 }
 
+/**
+ * An uploaded file held in the database rather than on disk. Serverless hosts
+ * (Vercel/Lambda) give the app a read-only filesystem, so nothing can be written
+ * under public/ at runtime — the bytes live here and are served by /api/uploads/[id].
+ */
+export interface IStoredUpload {
+  _id?: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  hash: string;
+  kind: string;
+  data: Buffer;
+  createdAt?: string;
+}
+
 export interface IOtpVerification {
   _id?: string;
   email: string;
