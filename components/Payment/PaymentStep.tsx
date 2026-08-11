@@ -10,12 +10,12 @@ import {
   Loader2,
   QrCode,
   RefreshCw,
-  Smartphone,
   X,
 } from 'lucide-react';
 import { IBooking, IPaymentSessionPublic } from '@/types';
 import { formatPrice } from '@/lib/utils';
 import { useToast } from '@/components/Notification/ToastContext';
+import UpiAppLauncher from '@/components/Payment/UpiAppLauncher';
 import {
   TRANSACTION_ID_ERROR,
   TRANSACTION_LAST4_ERROR,
@@ -56,6 +56,8 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [polling, setPolling] = useState(false);
+  /** Set once a UPI app has actually taken over, so we can prompt on return. */
+  const [launchedApp, setLaunchedApp] = useState<string | null>(null);
   const confirmedRef = useRef(false);
 
   const isTerminalFailure =
@@ -290,13 +292,11 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
           )}
 
           {session.upiLink && (
-            <a
-              href={session.upiLink}
-              className="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold flex items-center justify-center gap-2 transition-colors"
-            >
-              <Smartphone className="w-4 h-4" />
-              <span>Pay from this phone</span>
-            </a>
+            <UpiAppLauncher
+              upiLink={session.upiLink}
+              disabled={expired}
+              onLaunched={setLaunchedApp}
+            />
           )}
 
           <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-100">
@@ -326,6 +326,13 @@ export const PaymentStep: React.FC<PaymentStepProps> = ({
                   </p>
                 </div>
               </div>
+
+              {launchedApp && (
+                <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 leading-relaxed">
+                  Back from {launchedApp}? Enter the Transaction ID it showed you below to confirm
+                  this booking.
+                </p>
+              )}
 
               {/* OPTION SWITCH */}
               <div
