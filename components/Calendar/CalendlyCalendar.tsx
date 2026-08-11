@@ -392,81 +392,88 @@ Thank you.`;
       {/* SUCCESS MODAL & WHATSAPP REDIRECT */}
       {bookingSuccess && (
         <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-lg w-full shadow-2xl border border-slate-100 text-center space-y-6 animate-in fade-in zoom-in duration-300">
-            <div className="w-16 h-16 bg-emerald-500/10 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
-              <CheckCircle className="w-8 h-8" />
-            </div>
-
-            <div>
-              <h3 className="text-2xl font-extrabold text-slate-900">Payment Verified — Slot Confirmed!</h3>
-              <p className="text-sm text-slate-500 mt-1">
+          {/* Capped to the viewport with only the details scrolling, so the
+              confirmation and the WhatsApp button stay reachable on short screens. */}
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-300">
+            <div className="px-6 pt-6 pb-4 text-center shrink-0">
+              <div className="w-11 h-11 bg-emerald-500/10 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-500/20">
+                <CheckCircle className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-extrabold text-slate-900 mt-3 leading-snug">
+                Payment Verified — Slot Confirmed!
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
                 Booking{' '}
                 <span className="font-mono font-bold text-slate-700">{bookingSuccess.bookingId}</span>{' '}
                 is confirmed and your slot is locked.
               </p>
             </div>
 
-            {/* Booking Details Summary */}
-            <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 text-left space-y-2.5 text-xs sm:text-sm">
-              <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500 font-medium">Candidate Name</span>
-                <span className="font-bold text-slate-900">{bookingSuccess.name}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500 font-medium">Phone Number</span>
-                <span className="font-bold text-slate-900">{bookingSuccess.phone}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500 font-medium">Selected Package</span>
-                <span className="font-bold text-primary">{bookingSuccess.packageName}</span>
-              </div>
-              <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500 font-medium">Date & Slot</span>
-                <span className="font-bold text-slate-900">
-                  {bookingSuccess.date} ({bookingSuccess.slot})
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500 font-medium">Package Price</span>
-                <span className="font-black text-primary text-base">
-                  {formatPrice(bookingSuccess.price || bookingSuccess.packagePrice)}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500 font-medium">Payment Status</span>
-                <span className="font-bold text-emerald-600 flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  {bookingSuccess.paymentStatus || 'Payment Verified'}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500 font-medium">Booking Reference</span>
-                <span className="font-mono font-bold text-slate-900">
-                  {bookingSuccess.upiReference || bookingSuccess.bookingId}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Transaction ID</span>
-                <span className="font-mono font-bold text-slate-900">
-                  {bookingSuccess.transactionRef
-                    ? bookingSuccess.transactionRef
-                    : bookingSuccess.transactionRefLast4
-                    ? `•••• ${bookingSuccess.transactionRefLast4}`
-                    : '—'}
-                </span>
+            {/* Booking Details Summary. The scroll lives on the panel itself, not
+                the wrapper, so a short screen scrolls inside its rounded border
+                rather than slicing the panel in half. */}
+            <div className="px-6 min-h-0 flex">
+              <div className="w-full px-4 overflow-y-auto bg-slate-50 rounded-2xl border border-slate-200 text-left text-xs divide-y divide-slate-200">
+                <div className="flex justify-between gap-3 py-2">
+                  <span className="text-slate-500 font-medium shrink-0">Candidate Name</span>
+                  <span className="font-bold text-slate-900 text-right">{bookingSuccess.name}</span>
+                </div>
+                <div className="flex justify-between gap-3 py-2">
+                  <span className="text-slate-500 font-medium shrink-0">Phone Number</span>
+                  <span className="font-bold text-slate-900 text-right">{bookingSuccess.phone}</span>
+                </div>
+                <div className="flex justify-between gap-3 py-2">
+                  <span className="text-slate-500 font-medium shrink-0">Selected Package</span>
+                  <span className="font-bold text-primary text-right">{bookingSuccess.packageName}</span>
+                </div>
+                <div className="flex justify-between gap-3 py-2">
+                  <span className="text-slate-500 font-medium shrink-0">Date &amp; Slot</span>
+                  <span className="font-bold text-slate-900 text-right">
+                    {bookingSuccess.date} ({bookingSuccess.slot})
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3 py-2">
+                  <span className="text-slate-500 font-medium shrink-0">Package Price</span>
+                  <span className="font-black text-primary text-right">
+                    {formatPrice(bookingSuccess.price || bookingSuccess.packagePrice)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3 py-2">
+                  <span className="text-slate-500 font-medium shrink-0">Payment Status</span>
+                  <span className="font-bold text-emerald-600 flex items-center gap-1 text-right">
+                    <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                    {bookingSuccess.paymentStatus || 'Payment Verified'}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3 py-2">
+                  <span className="text-slate-500 font-medium shrink-0">Booking Reference</span>
+                  <span className="font-mono font-bold text-slate-900 text-right break-all">
+                    {bookingSuccess.upiReference || bookingSuccess.bookingId}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3 py-2">
+                  <span className="text-slate-500 font-medium shrink-0">Transaction ID</span>
+                  <span className="font-mono font-bold text-slate-900 text-right break-all">
+                    {bookingSuccess.transactionRef
+                      ? bookingSuccess.transactionRef
+                      : bookingSuccess.transactionRefLast4
+                      ? `•••• ${bookingSuccess.transactionRefLast4}`
+                      : '—'}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-3 pt-2">
+            <div className="px-6 pt-4 pb-6 space-y-2 shrink-0 text-center">
               <a
                 href={constructWhatsAppUrl(bookingSuccess)}
                 target="_blank"
                 rel="noreferrer"
-                className="w-full py-4 px-6 font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 rounded-2xl shadow-xl shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 text-base"
+                className="w-full py-3 px-4 font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 rounded-2xl shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 text-sm"
               >
-                <MessageSquare className="w-5 h-5 fill-white text-emerald-600" />
-                <span>Open WhatsApp Chat (+91 96455 67295)</span>
-                <ExternalLink className="w-4 h-4" />
+                <MessageSquare className="w-4 h-4 fill-white text-emerald-600 shrink-0" />
+                <span>Open WhatsApp Chat</span>
+                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
               </a>
 
               <button
